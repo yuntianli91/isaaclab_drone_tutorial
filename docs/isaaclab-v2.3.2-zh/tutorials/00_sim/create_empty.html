@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>创建空场景 — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>
+      Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button" aria-label="切换明暗主题">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button" aria-label="打开目录">目录</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">
+        IsaacLab Tutorial
+      </a>
+
+      <div class="sidebar-title">设置简单仿真</div>
+      <a class="active" data-search-item href="create_empty.html">创建空场景</a>
+      <a data-search-item href="spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="launch_app.html">深入了解 AppLauncher</a>
+
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+
+    <main class="content">
+      
+      <h1> 创建空场景</h1>
+
+      <p>
+        本教程介绍如何通过 <span class="term">Standalone Python Script</span>
+        启动并控制 Isaac Sim <span class="term">Simulator</span>。教程将在
+        Isaac Lab 中建立一个 <span class="term">Empty Scene</span>，并介绍
+        <span class="term">Framework</span> 中使用的两个主要
+        <span class="term">Class</span>：
+        <a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher">
+          <code>app.AppLauncher</code>
+        </a>
+        和
+        <a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext">
+          <code>sim.SimulationContext</code>
+        </a>。
+      </p>
+
+      <p>
+        开始本教程前，请先阅读
+        <a href="https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html">
+          Isaac Sim Workflows
+        </a>，初步了解 <span class="term">Simulator</span> 的使用方式。
+      </p>
+
+      <h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+      <p>
+        本教程对应 <code>scripts/tutorials/00_sim</code> 目录中的
+        <code>create_empty.py</code> <span class="term">Script</span>。
+      </p>
+
+      <details class="code-details">
+        <summary>create_empty.py 的代码</summary>
+        <div class="code-block" data-language="Python"><pre><code class="language-python"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""This script demonstrates how to create a simple stage in Isaac Sim.
+
+.. code-block:: bash
+
+    # Usage
+    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py
+
+"""
+
+"""Launch Isaac Sim Simulator first."""
+
+
+import argparse
+
+from isaaclab.app import AppLauncher
+
+# create argparser
+parser = argparse.ArgumentParser(description="Tutorial on creating an empty stage.")
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
+args_cli = parser.parse_args()
+# launch omniverse app
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
+from isaaclab.sim import SimulationCfg, SimulationContext
+
+
+def main():
+    """Main function."""
+
+    # Initialize the simulation context
+    sim_cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(sim_cfg)
+    # Set main camera
+    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+
+    # Play the simulator
+    sim.reset()
+    # Now we are ready!
+    print("[INFO]: Setup complete...")
+
+    # Simulate physics
+    while simulation_app.is_running():
+        # perform step
+        sim.step()
+
+
+if __name__ == "__main__":
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()</code></pre></div>
+      </details>
+
+      <h2 id="explained"><span class="heading-number">2</span> 代码解析
+      </h2>
+
+      <h3 id="launching"><span class="heading-number">2.1</span> 启动 <span class="term">Simulator</span>
+      </h3>
+      <p>
+        使用 <span class="term">Standalone Python Script</span> 时，第一步是启动
+        <span class="term">Simulation Application</span>。这项操作必须放在开头，
+        因为 Isaac Sim 的多个 <span class="term">Dependency Module</span> 只有在
+        <span class="term">Simulation App</span> 运行后才能使用。
+      </p>
+
+      <p>
+        可以通过导入 <code>app.AppLauncher</code>
+        <span class="term">Class</span> 完成这项操作。该
+        <span class="term">Utility Class</span> 封装了用于启动
+        <span class="term">Simulator</span> 的
+        <code>isaacsim.SimulationApp</code> <span class="term">Class</span>，
+        并提供了通过 <span class="term">Command-Line Arguments</span> 和
+        <span class="term">Environment Variables</span> 配置
+        <span class="term">Simulator</span> 的机制。
+      </p>
+
+      <p>
+        本教程主要介绍如何向用户定义的 <code>argparse.ArgumentParser</code>
+        添加 <span class="term">Command-Line Options</span>。将
+        <span class="term">Parser Instance</span> 传给
+        <code>app.AppLauncher.add_app_launcher_args()</code>
+        <span class="term">Method</span> 后，该 <span class="term">Method</span>
+        会向其追加不同的 <span class="term">Parameters</span>，包括以
+        <span class="term">Headless</span> 模式启动
+        <span class="term">App</span>、配置不同的
+        <span class="term">Livestream Options</span>，以及启用
+        <span class="term">Off-Screen Rendering</span>。
+      </p>
+
+      <div class="code-block" data-language="Python"><pre><code class="language-python">import argparse
+
+from isaaclab.app import AppLauncher
+
+# create argparser
+parser = argparse.ArgumentParser(description="Tutorial on creating an empty stage.")
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
+args_cli = parser.parse_args()
+# launch omniverse app
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app</code></pre></div>
+
+      <h3 id="imports"><span class="heading-number">2.2</span> 导入 Python <span class="term">Modules</span>
+      </h3>
+      <p>
+        <span class="term">Simulation App</span> 运行后，便可以从 Isaac Sim
+        和其他 <span class="term">Libraries</span> 导入不同的 Python
+        <span class="term">Modules</span>。这里导入以下
+        <span class="term">Module</span>：
+      </p>
+      <ul>
+        <li>
+          <code>isaaclab.sim</code>：Isaac Lab 中负责所有核心
+          <span class="term">Simulator-Related Operations</span> 的
+          <span class="term">Sub-Package</span>。
+        </li>
+      </ul>
+
+      <div class="code-block" data-language="Python"><pre><code class="language-python">from isaaclab.sim import SimulationCfg, SimulationContext</code></pre></div>
+
+      <h3 id="context"><span class="heading-number">2.3</span> 配置 <span class="term">Simulation Context</span>
+      </h3>
+      <p>
+        通过 <span class="term">Standalone Script</span> 启动
+        <span class="term">Simulator</span> 时，用户可以完整控制
+        <span class="term">Simulator</span> 的 <span class="term">Play</span>、
+        <span class="term">Pause</span> 和 <span class="term">Step</span>。
+        所有这些 <span class="term">Operations</span> 都由
+        <strong class="term">Simulation Context</strong> 处理。它负责各种
+        <span class="term">Timeline Events</span>，同时也会为
+        <span class="term">Simulation</span> 配置
+        <a href="https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html#physics-scene">
+          <span class="term">Physics Scene</span>
+        </a>。
+      </p>
+
+      <p>
+        在 Isaac Lab 中，<code>sim.SimulationContext</code>
+        <span class="term">Class</span> 继承自 Isaac Sim
+        的 <code>isaacsim.core.api.simulation_context.SimulationContext</code>，
+        使用户能够通过 Python 的 <code>dataclass</code>
+        <span class="term">Object</span> 配置
+        <span class="term">Simulation</span>，并处理
+        <span class="term">Simulation Stepping</span> 中的若干细节。
+      </p>
+
+      <p>
+        本教程将 <span class="term">Physics Time Step</span> 和
+        <span class="term">Rendering Time Step</span> 均设为 0.01 秒。
+        为此，需要将这些数值传给 <code>sim.SimulationCfg</code>，再使用该配置创建
+        <span class="term">Simulation Context Instance</span>。
+      </p>
+
+      <div class="code-block" data-language="Python"><pre><code class="language-python">    # Initialize the simulation context
+    sim_cfg = SimulationCfg(dt=0.01)
+    sim = SimulationContext(sim_cfg)
+    # Set main camera
+    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])</code></pre></div>
+
+      <p>
+        创建 <span class="term">Simulation Context</span> 后，我们只配置了作用于
+        <span class="term">Simulated Scene</span> 的
+        <span class="term">Physics</span>，其中包括用于
+        <span class="term">Simulation</span> 的 <span class="term">Device</span>、
+        <span class="term">Gravity Vector</span>，以及其他
+        <span class="term">Advanced Solver Parameters</span>。此时，要运行
+        <span class="term">Simulation</span> 还需要完成两个主要步骤：
+      </p>
+      <ol>
+        <li>
+          设计 <span class="term">Simulation Scene</span>：添加
+          <span class="term">Sensors</span>、<span class="term">Robots</span>
+          和其他 <span class="term">Simulated Objects</span>。
+        </li>
+        <li>
+          运行 <span class="term">Simulation Loop</span>：推进
+          <span class="term">Simulator</span>，并向
+          <span class="term">Simulator</span> 设置数据或从中读取数据。
+        </li>
+      </ol>
+      <p>
+        为了先专注于 <span class="term">Simulation Control</span>，本教程首先在
+        <span class="term">Empty Scene</span> 中讲解第 2 步。后续教程将介绍
+        第 1 步，以及如何使用 <span class="term">Simulation Handles</span> 与
+        <span class="term">Simulator</span> 交互。
+      </p>
+
+      <h3 id="running"><span class="heading-number">2.4</span> 运行 <span class="term">Simulation</span>
+      </h3>
+      <p>
+        配置好 <span class="term">Simulation Scene</span> 后，首先需要调用
+        <code>sim.SimulationContext.reset()</code>
+        <span class="term">Method</span>。该 <span class="term">Method</span>
+        会播放 <span class="term">Timeline</span>，并初始化
+        <span class="term">Simulator</span> 中的
+        <span class="term">Physics Handles</span>。在第一次推进
+        <span class="term">Simulator</span> 前必须调用它，否则
+        <span class="term">Simulation Handles</span> 将无法正确初始化。
+      </p>
+
+      <aside class="admonition">
+        <p class="admonition-title">备注</p>
+        <code>sim.SimulationContext.reset()</code> 与
+        <code>sim.SimulationContext.play()</code>
+        <span class="term">Method</span> 不同；后者只播放
+        <span class="term">Timeline</span>，不会初始化
+        <span class="term">Physics Handles</span>。
+      </aside>
+
+      <p>
+        播放 <span class="term">Simulation Timeline</span> 后，我们设置一个简单的
+        <span class="term">Simulation Loop</span>：只要
+        <span class="term">Simulation App</span> 仍在运行，就不断推进
+        <span class="term">Simulator</span>。
+        <code>sim.SimulationContext.step()</code>
+        <span class="term">Method</span> 接受 <code>render</code>
+        <span class="term">Argument</span>，用于决定本次
+        <span class="term">Step</span> 是否包含
+        <span class="term">Rendering-Related Events</span> 的更新。该
+        <span class="term">Flag</span> 默认设为 True。
+      </p>
+
+      <div class="code-block" data-language="Python"><pre><code class="language-python">    # Play the simulator
+    sim.reset()
+    # Now we are ready!
+    print("[INFO]: Setup complete...")
+
+    # Simulate physics
+    while simulation_app.is_running():
+        # perform step
+        sim.step()</code></pre></div>
+
+      <h3 id="exiting"><span class="heading-number">2.5</span> 退出 <span class="term">Simulation</span>
+      </h3>
+      <p>
+        最后，调用 <code>isaacsim.SimulationApp.close()</code>
+        <span class="term">Method</span> 停止
+        <span class="term">Simulation Application</span> 并关闭其窗口。
+      </p>
+
+      <div class="code-block" data-language="Python"><pre><code class="language-python">    # close sim app
+    simulation_app.close()</code></pre></div>
+
+      <h2 id="execution"><span class="heading-number">3</span> 执行代码
+      </h2>
+      <p>
+        了解完整代码后，现在运行 <span class="term">Script</span> 并查看结果：
+      </p>
+
+      <div class="code-block" data-language="Bash"><pre><code class="language-bash">./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py</code></pre></div>
+
+      <p>
+        此时 <span class="term">Simulation</span> 应当正在运行，并且
+        <span class="term">Stage</span> 应当正在
+        <span class="term">Rendering</span>。若要停止
+        <span class="term">Simulation</span>，可以关闭窗口，或者在
+        <span class="term">Terminal</span> 中按 <code>Ctrl+C</code>。
+      </p>
+
+      <img class="tutorial-image" src="../../assets/tutorial_create_empty.jpg" alt="create_empty.py 的运行结果">
+
+      <p>
+        向上述 <span class="term">Script</span> 传入 <code>--help</code>，
+        即可查看此前由 <code>app.AppLauncher</code>
+        <span class="term">Class</span> 添加的不同
+        <span class="term">Command-Line Arguments</span>。要以
+        <span class="term">Headless</span> 模式运行
+        <span class="term">Script</span>，可执行：
+      </p>
+
+      <div class="code-block" data-language="Bash"><pre><code class="language-bash">./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless</code></pre></div>
+
+      <p>
+        现在，我们已经基本了解如何运行
+        <span class="term">Simulation</span>。接下来进入下一篇教程，学习如何向
+        <span class="term">Stage</span> 添加 <span class="term">Assets</span>。
+      </p>
+
+      <nav class="page-nav" aria-label="翻页">
+        <a href="../../index.html">← 上一篇：教程</a>
+        <a href="spawn_prims.html">下一篇：在 Scene 中生成 Prim →</a>
+      </nav>
+
+      <footer class="page-footer">
+        <p>
+          原文：The Isaac Lab Project Developers。中文内容为非官方翻译初稿；
+          对应版本 v2.3.2。
+          <a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/00_sim/create_empty.html">
+            查看官方英文页面
+          </a>
+        </p>
+      </footer>
+    </main>
+
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+      
+      
+      
+      
+      
+      
+      
+      
+    <a href="#the-code">1 代码</a><a href="#explained">2 代码解析</a><a href="#launching" class="toc-level-2">2.1 启动 Simulator</a><a href="#imports" class="toc-level-2">2.2 导入 Python Modules</a><a href="#context" class="toc-level-2">2.3 配置 Simulation Context</a><a href="#running" class="toc-level-2">2.4 运行 Simulation</a><a href="#exiting" class="toc-level-2">2.5 退出 Simulation</a><a href="#execution">3 执行代码</a></aside>
+  </div>
+
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>与 Articulation 交互 — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="run_rigid_object.html">与 Rigid Object 交互</a>
+      <a class="active" data-search-item href="run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 与 Articulation 交互</h1>
+      <article class="bd-article">
+                  
+  <section id="interacting-with-an-articulation">
+<span id="tutorial-interact-articulation"></span>
+<p>本教程介绍如何与仿真中的 <span class="term">Articulation</span> Robot 交互。在上一节 Rigid Object 操作的基础上，我们将进一步学习设置关节状态，并向 Robot 的关节发送 Command。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>run_articulation.py</code>，位于 <code>scripts/tutorials/01_assets</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">run_articulation.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""This script demonstrates how to spawn a cart-pole and interact with it.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Usage</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on spawning and interacting with an articulation."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+
+<span class="c1">##</span>
+<span class="c1"># Pre-defined configs</span>
+<span class="c1">##</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]:</span>
+<span class="w">    </span><span class="sd">"""Designs the scene."""</span>
+    <span class="c1"># Ground-plane</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+    <span class="c1"># Lights</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+
+    <span class="c1"># Create separate groups called "Origin1", "Origin2"</span>
+    <span class="c1"># Each group will have a robot in it</span>
+<span class="hll">    <span class="n">origins</span> <span class="o">=</span> <span class="p">[[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
+</span><span class="hll">    <span class="c1"># Origin 1</span>
+</span><span class="hll">    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Origin1"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span><span class="hll">    <span class="c1"># Origin 2</span>
+</span><span class="hll">    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Origin2"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># Articulation</span>
+</span><span class="hll">    <span class="n">cartpole_cfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+</span><span class="hll">    <span class="n">cartpole_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">"/World/Origin.*/Robot"</span>
+</span><span class="hll">    <span class="n">cartpole</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">cartpole_cfg</span><span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># return the scene information</span>
+</span>    <span class="n">scene_entities</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"cartpole"</span><span class="p">:</span> <span class="n">cartpole</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">scene_entities</span><span class="p">,</span> <span class="n">origins</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">entities</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">],</span> <span class="n">origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Runs the simulation loop."""</span>
+    <span class="c1"># Extract scene entities</span>
+    <span class="c1"># note: we only do this here for readability. In general, it is better to access the entities directly from</span>
+    <span class="c1">#   the dictionary. This dictionary is replaced by the InteractiveScene class in the next tutorial.</span>
+    <span class="n">robot</span> <span class="o">=</span> <span class="n">entities</span><span class="p">[</span><span class="s2">"cartpole"</span><span class="p">]</span>
+    <span class="c1"># Define simulation stepping</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># Simulation loop</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># Reset</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># reset counter</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># reset the scene entities</span>
+            <span class="c1"># root state</span>
+<span class="hll">            <span class="c1"># we offset the root state by the origin since the states are written in simulation world frame</span>
+</span><span class="hll">            <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
+</span><span class="hll">            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+</span><span class="hll">            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">origins</span>
+</span><span class="hll">            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+</span><span class="hll">            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+</span><span class="hll">            <span class="c1"># set joint positions with some noise</span>
+</span><span class="hll">            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+</span><span class="hll">            <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
+</span><span class="hll">            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+</span><span class="hll">            <span class="c1"># clear internal buffers</span>
+</span><span class="hll">            <span class="n">robot</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span><span class="hll">            <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting robot state..."</span><span class="p">)</span>
+</span><span class="hll">        <span class="c1"># Apply random action</span>
+</span>        <span class="c1"># -- generate random joint efforts</span>
+        <span class="n">efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">5.0</span>
+        <span class="c1"># -- apply action to the robot</span>
+<span class="hll">        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="n">efforts</span><span class="p">)</span>
+</span><span class="hll">        <span class="c1"># -- write data to sim</span>
+</span><span class="hll">        <span class="n">robot</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+</span><span class="hll">        <span class="c1"># Perform step</span>
+</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="c1"># Increment counter</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># Update buffers</span>
+<span class="hll">        <span class="n">robot</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+</span><span class="hll">
+</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># Load kit helper</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="c1"># Set main camera</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+    <span class="c1"># Design scene</span>
+    <span class="n">scene_entities</span><span class="p">,</span> <span class="n">scene_origins</span> <span class="o">=</span> <span class="n">design_scene</span><span class="p">()</span>
+    <span class="n">scene_origins</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">scene_origins</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="c1"># Play the simulator</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># Now we are ready!</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+    <span class="c1"># Run the simulator</span>
+    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene_entities</span><span class="p">,</span> <span class="n">scene_origins</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><section>
+<h3 id="designing-the-scene"><span class="heading-number">2.1</span> 设计 <span class="term">Scene</span></h3>
+<p>与前面的教程一样，Scene 中包含 Ground Plane 和 Distant Light。不同之处在于，本例从 USD 文件生成 Cartpole Articulation，而不是 Rigid Object。Cartpole 由可沿 x 轴移动的滑车和可绕滑车旋转的杆组成；USD 文件保存其几何体、关节及其他物理属性。</p><p>Cartpole 使用预定义的 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg" title="isaaclab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationCfg</span></code></a>。该 Configuration Object 包含生成方式、默认初始状态、各关节的执行器模型及其他元数据。有关创建此类配置的详细说明，请参阅“编写 Asset Configuration”教程。</p><p>与 Rigid Object 类似，将 Configuration Object 传给 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation" title="isaaclab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a> 构造函数，即可在 Scene 中生成并创建 Articulation 实例。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Create separate groups called "Origin1", "Origin2"</span>
+    <span class="c1"># Each group will have a robot in it</span>
+    <span class="n">origins</span> <span class="o">=</span> <span class="p">[[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
+    <span class="c1"># Origin 1</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Origin1"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="c1"># Origin 2</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Origin2"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c1"># Articulation</span>
+    <span class="n">cartpole_cfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">cartpole_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">"/World/Origin.*/Robot"</span>
+    <span class="n">cartpole</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">cartpole_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="running-the-simulation-loop"><span class="heading-number">2.2</span> 运行 <span class="term">Simulation Loop</span></h3>
+<p>Simulation Loop 会定期重置 Simulation，向 Articulation 设置 Command，推进 Simulation，并更新 Articulation 的内部 Buffer。</p><section>
+<h4 id="resetting-the-simulation"><span class="heading-number">2.2.1</span> 重置 Simulation</h4><p>与 Rigid Object 一样，Articulation 也有描述根刚体的根状态；此外还有由各关节 Position 和 Velocity 组成的关节状态。</p><p>重置时，先调用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_pose_to_sim()</span></code> 和 <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_root_velocity_to_sim()</span></code> 设置根状态，再调用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_joint_state_to_sim()</span></code> 设置关节状态。最后调用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.reset()</span></code> 清空内部 Buffer 和缓存。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>            <span class="c1"># reset the scene entities</span>
+            <span class="c1"># root state</span>
+            <span class="c1"># we offset the root state by the origin since the states are written in simulation world frame</span>
+            <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
+            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">origins</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+            <span class="c1"># set joint positions with some noise</span>
+            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+            <span class="c1"># clear internal buffers</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h4 id="stepping-the-simulation"><span class="heading-number">2.2.2</span> 步进 <span class="term">Simulation</span></h4>
+<p>向 Articulation 应用 Command 分为两个步骤：</p><ol class="arabic simple">
+<li><p><em>设定共同目标</em>：这设置了所需的联合 <span class="term">Position</span>、<span class="term">Velocity</span> 或 <span class="term">Articulation</span> 的工作目标。</p></li>
+<li><p><em>将数据写入<span class="term">Simulation</span></em>：基于 <span class="term">Articulation</span> 的 <span class="term">Configuration</span>，该 <span class="term">Step</span> 可以处理任何
+<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/overview/core-concepts/actuators.html#overview-actuators"><span class="std std-ref">驱动转换</span></a> 并将转换后的值写入 <span class="term">PhysX</span> <span class="term">Buffer</span>。</p></li>
+</ol>
+<p>本教程使用关节力矩 Command 控制 Articulation。为此，需要把 Articulation 的 Stiffness 和 Damping 设为零；Cartpole 的预定义 Configuration 已完成这一设置。</p><p>每个 Step 随机采样关节力矩，并通过 <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.set_joint_effort_target()</span></code> 设置目标。随后调用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">Articulation.write_data_to_sim()</span></code> 将数据写入 PhysX Buffer，最后推进 Simulation。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>        <span class="c1"># Apply random action</span>
+        <span class="c1"># -- generate random joint efforts</span>
+        <span class="n">efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">5.0</span>
+        <span class="c1"># -- apply action to the robot</span>
+        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="n">efforts</span><span class="p">)</span>
+        <span class="c1"># -- write data to sim</span>
+        <span class="n">robot</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h4 id="updating-the-state"><span class="heading-number">2.2.3</span> 更新状态</h4>
+<p>每个 Articulation 都包含一个 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData" title="isaaclab.assets.ArticulationData"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationData</span></code></a> Object，用于保存自身状态。调用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.update" title="isaaclab.assets.Articulation.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code></a> 可从 Simulation 更新其中的 Buffer。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>        <span class="c1"># Update buffers</span>
+        <span class="n">robot</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>要运行代码并查看结果，让我们从 <span class="term">Terminal</span> 运行 <span class="term">Script</span>：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/01_assets/run_articulation.py
+</pre></div>
+</div>
+<p>这个 <span class="term">Command</span> 应该打开一个 <span class="term">Stage</span> ，其中有一个<span class="term">Ground Plane</span>、<span class="term">Light</span>和两个随机移动的Cartpole。
+要停止 <span class="term">Simulation</span>，您可以关闭窗口，或按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 在 <span class="term">Terminal</span> 中。</p>
+<figure class="align-center" style="width: 100%">
+<img alt="result of run_articulation.py" src="../../assets/tutorial_run_articulation.jpg" class="tutorial-image">
+</figure>
+<p>在本教程中，我们学习了如何创建一个简单的 <span class="term">Articulation</span> 并与之交互。我们看到了如何设置状态
+<span class="term">Articulation</span>（其根状态和联合状态）的结构以及如何对其应用 <span class="term">Commands</span>。我们还了解了如何更新其
+<span class="term">Buffers</span> 从 <span class="term">Simulation</span> 读取最新状态。</p>
+<p>除了本教程之外，我们还提供了其他几个<span class="term">Scripts</span>，即<span class="term">Spawn</span>与<span class="term">Robots</span>不同。这些都包括在内
+在 <code class="docutils literal notranslate"><span class="pre">scripts/demos</span></code> 目录。您可以将这些 <span class="term">Scripts</span> 运行为：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="c1"># Spawn many different single-arm manipulators</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/arms.py
+
+<span class="c1"># Spawn many different quadrupeds</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/quadrupeds.py
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="run_rigid_object.html">← 上一篇：与 Rigid Object 交互</a>
+        <a href="run_deformable_object.html">下一篇：与 Deformable Object 交互 →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/01_assets/run_articulation.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#designing-the-scene" class="toc-level-2">2.1 设计 Scene</a><a href="#running-the-simulation-loop" class="toc-level-2">2.2 运行 Simulation Loop</a><a href="#resetting-the-simulation" class="toc-level-3">2.2.1 重置 Simulation</a><a href="#stepping-the-simulation" class="toc-level-3">2.2.2 步进 Simulation</a><a href="#updating-the-state" class="toc-level-3">2.2.3 更新状态</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

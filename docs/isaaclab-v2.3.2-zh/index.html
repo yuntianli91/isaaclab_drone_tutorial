@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>教程 — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">
+      <span class="brand-mark"></span>
+      Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button" aria-label="切换明暗主题">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button" aria-label="打开目录">目录</button>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root active" data-search-item href="index.html">
+        IsaacLab Tutorial
+      </a>
+
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="tutorials/00_sim/create_empty.html">
+        创建空场景
+      </a>
+      <a data-search-item href="tutorials/00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="tutorials/00_sim/launch_app.html">深入了解 AppLauncher</a>
+
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="tutorials/01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="tutorials/01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="tutorials/01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="tutorials/01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="tutorials/01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="tutorials/02_scene/create_scene.html">使用 Interactive Scene</a>
+
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="tutorials/03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="tutorials/03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="tutorials/03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="tutorials/03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="tutorials/03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="tutorials/03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="tutorials/03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="tutorials/03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="tutorials/04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="tutorials/05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="tutorials/05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+
+    <main class="content">
+      
+      <h1> 教程</h1>
+
+      <p>
+        欢迎阅读 Isaac Lab 教程！这些教程通过循序渐进的方式，帮助你理解并使用
+        <span class="term">Framework</span> 的各项功能。所有教程均以 Python
+        <span class="term">Script</span> 编写；对应
+        <span class="term">Source Code</span> 可在 Isaac Lab
+        <span class="term">Repository</span> 的 <code>scripts/tutorials</code>
+        目录中找到。
+      </p>
+
+      <aside class="admonition">
+        <p class="admonition-title">备注</p>
+        我们希望不断扩充教程，涵盖更多主题与
+        <span class="term">Use Case</span>。如果你有任何建议，欢迎告知我们。
+      </aside>
+
+      <p>建议按照这里列出的顺序阅读教程。</p>
+
+      <h2 id="simple-simulation"><span class="heading-number">1</span> 设置简单仿真
+      </h2>
+      <p>
+        这些教程介绍如何使用不同设置启动
+        <span class="term">Simulation</span>，以及如何在
+        <span class="term">Simulated Scene</span> 中生成
+        <span class="term">Objects</span>。教程涵盖以下 API：
+        <code>AppLauncher</code>、
+        <code>SimulationContext</code> 和 <code>spawners</code>。
+      </p>
+      <ul>
+        <li><a href="tutorials/00_sim/create_empty.html">创建空场景</a></li>
+        <li><a href="tutorials/00_sim/spawn_prims.html">在 Scene 中生成 <span class="term">Prim</span></a></li>
+        <li><a href="tutorials/00_sim/launch_app.html">深入了解 <code>AppLauncher</code></a></li>
+      </ul>
+
+      <h2 id="assets"><span class="heading-number">2</span> 与 <span class="term">Assets</span> 交互
+      </h2>
+      <p>
+        在 <span class="term">Scene</span> 中生成
+        <span class="term">Objects</span> 后，这些教程将介绍如何为它们创建
+        <span class="term">Physics Handles</span> 并进行交互。相关内容围绕
+        <code>AssetBase</code> <span class="term">Class</span> 及其派生类型展开，
+        包括 <code>RigidObject</code>、<code>Articulation</code> 和
+        <code>DeformableObject</code>。
+      </p>
+      <ul>
+        <li><a href="tutorials/01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a></li>
+        <li><a href="tutorials/01_assets/run_rigid_object.html">与 <span class="term">Rigid Object</span> 交互</a></li>
+        <li><a href="tutorials/01_assets/run_articulation.html">与 <span class="term">Articulation</span> 交互</a></li>
+        <li><a href="tutorials/01_assets/run_deformable_object.html">与 <span class="term">Deformable Object</span> 交互</a></li>
+        <li><a href="tutorials/01_assets/run_surface_gripper.html">与 <span class="term">Surface Gripper</span> 交互</a></li>
+      </ul>
+
+      <h2 id="scene"><span class="heading-number">3</span> 创建 <span class="term">Scene</span>
+      </h2>
+      <p>
+        掌握 <span class="term">Framework</span> 的基本概念后，教程将转向使用
+        <code>InteractiveScene</code> <span class="term">Class</span> 的、更直观的
+        <span class="term">Scene Interface</span>。该
+        <span class="term">Class</span> 提供了更高层的
+        <span class="term">Abstraction</span>，使创建
+        <span class="term">Scenes</span> 更加容易。
+      </p>
+      <ul>
+        <li><a href="tutorials/02_scene/create_scene.html">使用 Interactive Scene</a></li>
+      </ul>
+
+      <h2 id="environment"><span class="heading-number">4</span> 设计 <span class="term">Environment</span>
+      </h2>
+      <p>
+        以下教程将介绍 <span class="term">Manager-Based Environments</span>：
+        <code>ManagerBasedEnv</code> 及其派生类
+        <code>ManagerBasedRLEnv</code>，以及
+        <span class="term">Direct Workflow Base Class</span>
+        <code>DirectRLEnv</code>。这些 <span class="term">Environments</span>
+        将 <span class="term">Framework</span> 的不同部分组合起来，创建供
+        <span class="term">Agent</span> 交互的
+        <span class="term">Simulation Environment</span>。
+      </p>
+      <ul>
+        <li><a href="tutorials/03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a></li>
+        <li><a href="tutorials/03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a></li>
+        <li><a href="tutorials/03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a></li>
+        <li><a href="tutorials/03_envs/register_rl_env_gym.html">注册 Environment</a></li>
+        <li><a href="tutorials/03_envs/run_rl_training.html">使用 RL Agent 训练</a></li>
+        <li><a href="tutorials/03_envs/configuring_rl_training.html">配置 RL Agent</a></li>
+        <li><a href="tutorials/03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a></li>
+        <li><a href="tutorials/03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a></li>
+      </ul>
+
+      <h2 id="sensors"><span class="heading-number">5</span> 集成 <span class="term">Sensors</span>
+      </h2>
+      <p>
+        以下教程介绍如何将 <span class="term">Sensors</span> 集成到
+        <span class="term">Simulation Environment</span> 中，并引入
+        <code>SensorBase</code> <span class="term">Class</span> 及其派生类型，例如
+        <code>Camera</code> 和 <code>RayCaster</code>。
+      </p>
+      <ul>
+        <li><a href="tutorials/04_sensors/add_sensors_on_robot.html">在 Robot 上添加 <span class="term">Sensors</span></a></li>
+      </ul>
+
+      <h2 id="motion-generators"><span class="heading-number">6</span> 使用 <span class="term">Motion Generators</span>
+      </h2>
+      <p>
+        除了在 <span class="term">Joint-Level</span> 控制
+        <span class="term">Robots</span>，以下教程还将介绍如何使用
+        <span class="term">Motion Generators</span> 在
+        <span class="term">Task-Level</span> 控制
+        <span class="term">Robots</span>。
+      </p>
+      <ul>
+        <li><a href="tutorials/05_controllers/run_diff_ik.html">使用 <span class="term">Task-Space Controller</span></a></li>
+        <li><a href="tutorials/05_controllers/run_osc.html">使用 <span class="term">Operational Space Controller</span></a></li>
+      </ul>
+
+      <nav class="page-nav" aria-label="翻页">
+        <span></span>
+        <a href="tutorials/00_sim/create_empty.html">下一篇：创建空场景 →</a>
+      </nav>
+
+      <footer class="page-footer">
+        <p>
+          原文：The Isaac Lab Project Developers。中文内容为非官方翻译初稿；
+          对应版本 v2.3.2。
+        </p>
+      </footer>
+    </main>
+
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+      
+      
+      
+      
+      
+      
+    <a href="#simple-simulation">1 设置简单仿真</a><a href="#assets">2 与 Assets 交互</a><a href="#scene">3 创建 Scene</a><a href="#environment">4 设计 Environment</a><a href="#sensors">5 集成 Sensors</a><a href="#motion-generators">6 使用 Motion Generators</a></aside>
+  </div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

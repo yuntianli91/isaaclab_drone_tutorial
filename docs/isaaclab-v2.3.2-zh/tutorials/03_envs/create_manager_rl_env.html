@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>创建 Manager-Based RL Environment — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a class="active" data-search-item href="create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 创建 Manager-Based RL Environment</h1>
+      <article class="bd-article">
+                  
+  <section id="creating-a-manager-based-rl-environment">
+<span id="tutorial-create-manager-rl-env"></span>
+<p>上一节创建了 Manager-Based Base Environment，本教程将在此基础上加入 Task 定义，构建用于 Reinforcement Learning 的 Manager-Based RL Environment。</p><p>基础 <span class="term">Environment</span> 提供感知—行动接口：Agent 向 Environment 发送 Action，并接收 Observation。导航、平衡等学习任务还需要明确目标，因此 <code>envs.ManagerBasedRLEnv</code> 在基础接口上增加了 Task 相关机制。</p><p>Isaac Lab 推荐通过 <code>envs.ManagerBasedRLEnvCfg</code> 配置 Task，而不是直接修改 Environment Base Class。这样可以分离 Task 规范和Environment 实现，并复用相同的组件。</p><p>本教程将配置 Cartpole 平衡任务，介绍如何通过 Reward Term、Termination、Curriculum 和 Command 完整描述学习目标。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>在本教程中，我们使用定义在 <span class="term">Cartpole</span> <span class="term">Environment</span> <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks.manager_based.classic.cartpole</span></code> <span class="term">Module</span>。</p>
+<details class="code-details">
+<summary>代码 <span class="term">cartpole_env_cfg.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnvCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">RewardTermCfg</span> <span class="k">as</span> <span class="n">RewTerm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerminationTermCfg</span> <span class="k">as</span> <span class="n">DoneTerm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.classic.cartpole.mdp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mdp</span>
+
+<span class="c1">##</span>
+<span class="c1"># Pre-defined configs</span>
+<span class="c1">##</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets.robots.cartpole</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
+
+
+<span class="c1">##</span>
+<span class="c1"># Scene definition</span>
+<span class="c1">##</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Configuration for a cart-pole scene."""</span>
+
+    <span class="c1"># ground plane</span>
+    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/ground"</span><span class="p">,</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">100.0</span><span class="p">,</span> <span class="mf">100.0</span><span class="p">)),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># cartpole</span>
+    <span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot"</span><span class="p">)</span>
+
+    <span class="c1"># lights</span>
+    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/DomeLight"</span><span class="p">,</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">),</span> <span class="n">intensity</span><span class="o">=</span><span class="mf">500.0</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="c1">##</span>
+<span class="c1"># MDP settings</span>
+<span class="c1">##</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Action specifications for the MDP."""</span>
+
+    <span class="n">joint_effort</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Observation specifications for the MDP."""</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Observations for policy group."""</span>
+
+        <span class="c1"># observation terms (order preserved)</span>
+        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># observation groups</span>
+    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Configuration for events."""</span>
+
+    <span class="c1"># reset</span>
+    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">"reset"</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">]),</span>
+            <span class="s2">"position_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+            <span class="s2">"velocity_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">"reset"</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"cart_to_pole"</span><span class="p">]),</span>
+            <span class="s2">"position_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+            <span class="s2">"velocity_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RewardsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Reward terms for the MDP."""</span>
+
+    <span class="c1"># (1) Constant running reward</span>
+    <span class="n">alive</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">is_alive</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="hll">    <span class="c1"># (2) Failure penalty</span>
+</span><span class="hll">    <span class="n">terminating</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">is_terminated</span><span class="p">,</span> <span class="n">weight</span><span class="o">=-</span><span class="mf">2.0</span><span class="p">)</span>
+</span><span class="hll">    <span class="c1"># (3) Primary task: keep pole upright</span>
+</span><span class="hll">    <span class="n">pole_pos</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_target_l2</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">weight</span><span class="o">=-</span><span class="mf">1.0</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"cart_to_pole"</span><span class="p">]),</span> <span class="s2">"target"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">},</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="c1"># (4) Shaping tasks: lower cart velocity</span>
+</span><span class="hll">    <span class="n">cart_vel</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_l1</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">weight</span><span class="o">=-</span><span class="mf">0.01</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">])},</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="c1"># (5) Shaping tasks: lower pole angular velocity</span>
+</span><span class="hll">    <span class="n">pole_vel</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_l1</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">weight</span><span class="o">=-</span><span class="mf">0.005</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"cart_to_pole"</span><span class="p">])},</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="nd">@configclass</span>
+</span><span class="hll"><span class="k">class</span><span class="w"> </span><span class="nc">TerminationsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="w">    </span><span class="sd">"""Termination terms for the MDP."""</span>
+</span>
+    <span class="c1"># (1) Time out</span>
+<span class="hll">    <span class="n">time_out</span> <span class="o">=</span> <span class="n">DoneTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">time_out</span><span class="p">,</span> <span class="n">time_out</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span class="hll">    <span class="c1"># (2) Cart out of bounds</span>
+</span><span class="hll">    <span class="n">cart_out_of_bounds</span> <span class="o">=</span> <span class="n">DoneTerm</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_out_of_manual_limit</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">]),</span> <span class="s2">"bounds"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)},</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="c1">##</span>
+</span><span class="hll"><span class="c1"># Environment configuration</span>
+</span><span class="hll"><span class="c1">##</span>
+</span>
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Configuration for the cartpole environment."""</span>
+
+    <span class="c1"># Scene settings</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">CartpoleSceneCfg</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">clone_in_fabric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Basic settings</span>
+    <span class="n">observations</span><span class="p">:</span> <span class="n">ObservationsCfg</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="n">ActionsCfg</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+    <span class="n">events</span><span class="p">:</span> <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+    <span class="c1"># MDP settings</span>
+    <span class="n">rewards</span><span class="p">:</span> <span class="n">RewardsCfg</span> <span class="o">=</span> <span class="n">RewardsCfg</span><span class="p">()</span>
+    <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
+
+    <span class="c1"># Post initialization</span>
+<span class="hll">    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span class="hll"><span class="w">        </span><span class="sd">"""Post initialization."""</span>
+</span><span class="hll">        <span class="c1"># general settings</span>
+</span>        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_s</span> <span class="o">=</span> <span class="mi">5</span>
+        <span class="c1"># viewer settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">(</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">)</span>
+        <span class="c1"># simulation settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span>
+</pre></div>
+</div>
+</div>
+</details><p>用于运行 <span class="term">Environment</span> 的 <span class="term">Script</span> <code class="docutils literal notranslate"><span class="pre">run_cartpole_rl_env.py</span></code> 存在于
+<code class="docutils literal notranslate"><span class="pre">isaaclab/scripts/tutorials/03_envs</span></code> 目录。 <span class="term">Script</span> 类似于
+<code class="docutils literal notranslate"><span class="pre">cartpole_base_env.py</span></code> 上一篇教程中的 <span class="term">Script</span> ，只不过它使用了
+<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> 而不是 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a>.</p>
+<details class="code-details">
+<summary>代码 <span class="term">run_cartpole_rl_env.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""</span>
+<span class="sd">This script demonstrates how to run the RL environment for the cartpole balancing task.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on running the cartpole RL environment."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to spawn."</span><span class="p">)</span>
+
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnv</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">CartpoleEnvCfg</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># create environment configuration</span>
+    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
+    <span class="c1"># setup RL environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+
+    <span class="c1"># simulate physics</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+<span class="hll">            <span class="c1"># reset</span>
+</span><span class="hll">            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+</span>                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting environment..."</span><span class="p">)</span>
+            <span class="c1"># sample random actions</span>
+            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+            <span class="c1"># step the environment</span>
+            <span class="n">obs</span><span class="p">,</span> <span class="n">rew</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
+            <span class="c1"># print current orientation of pole</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[Env 0]: Pole joint: "</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">"policy"</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="c1"># update counter</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># close the environment</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p>“创建 Manager-Based Base Environment”教程已经说明如何配置 Scene、Observation、Action 和 Event，因此本节只介绍与 RL Task 相关的组件。</p><p>Isaac Lab 在 <code class="xref py py-mod docutils literal notranslate"><span class="pre">envs.mdp</span></code> Module 中提供了多种常用 Term。本教程会使用其中一部分，用户也可以在 Task 专属子 Package 中实现自己的 Term，例如 <code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_tasks.manager_based.classic.cartpole.mdp</span></code>。</p><section>
+<h3 id="defining-rewards"><span class="heading-number">2.1</span> 定义 <span class="term">Rewards</span></h3>
+<p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardManager" title="isaaclab.managers.RewardManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.RewardManager</span></code></a> 负责计算 Agent 的 Reward。每个 Reward Term 使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg" title="isaaclab.managers.RewardTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.RewardTermCfg</span></code></a> 配置，其中包含计算 Reward 的 Function 或 Callable Class、对应权重，以及调用 Reward Function 时传入的 <code class="docutils literal notranslate"><span class="pre">"params"</span></code> 字典。</p><p>Cartpole Task 使用以下 Reward Term：</p><ul class="simple">
+<li><p><strong>活着 <span class="term">Reward</span></strong>：鼓励 <span class="term">Agent</span> 尽可能长时间地存活。</p></li>
+<li><p><strong>终止 <span class="term">Reward</span></strong>：同样惩罚 <span class="term">Agent</span> 的终止。</p></li>
+<li><p><strong>极角 <span class="term">Reward</span></strong>：鼓励 <span class="term">Agent</span> 将杆保持在所需的直立位置 <span class="term">Position</span>。</p></li>
+<li><p><strong>购物车 <span class="term">Velocity</span> <span class="term">Reward</span></strong>：鼓励 <span class="term">Agent</span> 使购物车 <span class="term">Velocity</span> 尽可能小。</p></li>
+<li><p><strong>杆 <span class="term">Velocity</span> <span class="term">Reward</span></strong>：鼓励 <span class="term">Agent</span> 保持杆 <span class="term">Velocity</span> 尽可能小。</p></li>
+</ul>
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RewardsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Reward terms for the MDP."""</span>
+
+    <span class="c1"># (1) Constant running reward</span>
+    <span class="n">alive</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">is_alive</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="c1"># (2) Failure penalty</span>
+    <span class="n">terminating</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">is_terminated</span><span class="p">,</span> <span class="n">weight</span><span class="o">=-</span><span class="mf">2.0</span><span class="p">)</span>
+    <span class="c1"># (3) Primary task: keep pole upright</span>
+    <span class="n">pole_pos</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_target_l2</span><span class="p">,</span>
+        <span class="n">weight</span><span class="o">=-</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"cart_to_pole"</span><span class="p">]),</span> <span class="s2">"target"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">},</span>
+    <span class="p">)</span>
+    <span class="c1"># (4) Shaping tasks: lower cart velocity</span>
+    <span class="n">cart_vel</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_l1</span><span class="p">,</span>
+        <span class="n">weight</span><span class="o">=-</span><span class="mf">0.01</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">])},</span>
+    <span class="p">)</span>
+    <span class="c1"># (5) Shaping tasks: lower pole angular velocity</span>
+    <span class="n">pole_vel</span> <span class="o">=</span> <span class="n">RewTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_l1</span><span class="p">,</span>
+        <span class="n">weight</span><span class="o">=-</span><span class="mf">0.005</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"cart_to_pole"</span><span class="p">])},</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="defining-termination-criteria"><span class="heading-number">2.2</span> 定义 <span class="term">Termination</span> 标准</h3>
+<p>多数学习 Task 以有限长度的 Episode 运行。以 Cartpole 为例，目标是尽可能长时间保持杆的平衡；当系统进入不稳定或不安全状态时，应提前终止 Episode。即使 Agent 持续保持平衡，也会在达到时间上限后开始新 Episode，使其能够从不同初始状态继续学习。</p><p><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.TerminationsCfg</span></code> 定义 Episode 的终止条件。本例在满足以下任一条件时终止：</p><ul class="simple">
+<li><p><strong><span class="term">Episode</span>长度</strong> <span class="term">Episode</span>长度大于定义的 max_<span class="term">Episode</span>_length</p></li>
+<li><p><strong>购物车超出范围</strong> 购物车超出界限 [-3, 3]</p></li>
+</ul>
+<p><code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.TerminationsCfg.time_out</span></code> Flag 用于区分超时导致的 Truncation 和真正的 Termination；两者的含义与 Gymnasium 文档一致。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TerminationsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Termination terms for the MDP."""</span>
+
+    <span class="c1"># (1) Time out</span>
+    <span class="n">time_out</span> <span class="o">=</span> <span class="n">DoneTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">time_out</span><span class="p">,</span> <span class="n">time_out</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># (2) Cart out of bounds</span>
+    <span class="n">cart_out_of_bounds</span> <span class="o">=</span> <span class="n">DoneTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_out_of_manual_limit</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">]),</span> <span class="s2">"bounds"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)},</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="defining-commands"><span class="heading-number">2.3</span> 定义 <span class="term">Commands</span></h3>
+<p>对于具有目标条件的 Task，可以用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.CommandManager" title="isaaclab.managers.CommandManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.CommandManager</span></code></a> 为 Agent 生成目标或 Command。Command Manager 负责在每个 Step 更新和重新采样 Command，也可以将 Command 作为 Observation 提供给 Agent。</p><p>本教程的 Task 不需要 Command，因此保留默认值 None。其他 Locomotion 或 Manipulation Task 中可以找到 Command Manager 的配置示例。</p></section>
+<section>
+<h3 id="defining-curriculum"><span class="heading-number">2.4</span> 定义 <span class="term">Curriculum</span></h3>
+<p>训练 Agent 时，常从简单目标开始，并随训练进展逐步提高 Task 难度，这就是 Curriculum Learning。Isaac Lab 提供 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.CurriculumManager" title="isaaclab.managers.CurriculumManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.CurriculumManager</span></code></a> 来配置此过程。</p><p>为保持示例简单，本教程不使用 Curriculum；其他 Locomotion 和 Manipulation Task 中提供了相关示例。</p></section>
+<section>
+<h3 id="tying-it-all-together"><span class="heading-number">2.5</span> 将它们结合在一起</h3>
+<p>定义上述组件后，即可创建 Cartpole 的 <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg</span></code>。它与“创建 Manager-Based Base Environment”中的 <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg</span></code> 类似，但额外包含前述 RL 组件。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Configuration for the cartpole environment."""</span>
+
+    <span class="c1"># Scene settings</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">CartpoleSceneCfg</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">clone_in_fabric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Basic settings</span>
+    <span class="n">observations</span><span class="p">:</span> <span class="n">ObservationsCfg</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="n">ActionsCfg</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+    <span class="n">events</span><span class="p">:</span> <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+    <span class="c1"># MDP settings</span>
+    <span class="n">rewards</span><span class="p">:</span> <span class="n">RewardsCfg</span> <span class="o">=</span> <span class="n">RewardsCfg</span><span class="p">()</span>
+    <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
+
+    <span class="c1"># Post initialization</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Post initialization."""</span>
+        <span class="c1"># general settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_s</span> <span class="o">=</span> <span class="mi">5</span>
+        <span class="c1"># viewer settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">(</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">)</span>
+        <span class="c1"># simulation settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="running-the-simulation-loop"><span class="heading-number">2.6</span> 运行 <span class="term">Simulation Loop</span></h3>
+<p><code class="docutils literal notranslate"><span class="pre">run_cartpole_rl_env.py</span></code> 的 Simulation Loop 与上一教程基本相同，区别是创建 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a>，而不是 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a>。因此，<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv.step" title="isaaclab.envs.ManagerBasedRLEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv.step()</span></code></a> 还会返回 Reward 和 Termination 状态；Info 字典中则记录各 Reward Term 的贡献、各 Term 的终止状态和 Episode Length 等信息。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># create environment configuration</span>
+    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
+    <span class="c1"># setup RL environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+
+    <span class="c1"># simulate physics</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+            <span class="c1"># reset</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting environment..."</span><span class="p">)</span>
+            <span class="c1"># sample random actions</span>
+            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+            <span class="c1"># step the environment</span>
+            <span class="n">obs</span><span class="p">,</span> <span class="n">rew</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
+            <span class="c1"># print current orientation of pole</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[Env 0]: Pole joint: "</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">"policy"</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="c1"># update counter</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># close the environment</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>与前面的教程相同，执行 <code class="docutils literal notranslate"><span class="pre">run_cartpole_rl_env.py</span></code> 运行 Environment：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/run_cartpole_rl_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+</pre></div>
+</div>
+<p>显示的 Simulation 与上一教程相似，但 Environment 现在还会返回 Reward 和 Termination 状态。每个 Environment 在满足 Configuration 中的终止条件时会独立 Reset。</p><figure class="align-center" style="width: 100%">
+<img alt="result of run_cartpole_rl_env.py" src="../../assets/tutorial_create_manager_rl_env.jpg" class="tutorial-image">
+</figure>
+<p>关闭窗口或在启动 Simulation 的 Terminal 中按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 即可停止。</p><p>本教程通过 Reward、Termination、Command 和 Curriculum Term 扩展基础 Environment，构建了用于 RL 的 Task Environment；还演示了如何运行 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> 并读取其返回信号。</p><p>虽然可以手动实例化 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a>，但为每个 Task 编写专用 Script 并不便于扩展。下一教程将使用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">gymnasium.make()</span></code>，通过 Gymnasium Interface 按名称创建 Environment。</p></section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="create_manager_base_env.html">← 上一篇：创建 Manager-Based Base Environment</a>
+        <a href="create_direct_rl_env.html">下一篇：创建 Direct Workflow RL Environment →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/03_envs/create_manager_rl_env.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#defining-rewards" class="toc-level-2">2.1 定义 Rewards</a><a href="#defining-termination-criteria" class="toc-level-2">2.2 定义 Termination 标准</a><a href="#defining-commands" class="toc-level-2">2.3 定义 Commands</a><a href="#defining-curriculum" class="toc-level-2">2.4 定义 Curriculum</a><a href="#tying-it-all-together" class="toc-level-2">2.5 将它们结合在一起</a><a href="#running-the-simulation-loop" class="toc-level-2">2.6 运行 Simulation Loop</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

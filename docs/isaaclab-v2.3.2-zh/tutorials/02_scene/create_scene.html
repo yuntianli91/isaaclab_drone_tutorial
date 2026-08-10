@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>使用 Interactive Scene — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a class="active" data-search-item href="create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 使用 Interactive Scene</h1>
+      <article class="bd-article">
+                  
+  <section id="using-the-interactive-scene">
+<span id="tutorial-interactive-scene"></span>
+<p>此前的教程需要手动向 <span class="term">Scene</span> 中生成 Asset，并逐个创建用于交互的 Object 实例。随着 Scene 变得复杂，这种方式会越来越繁琐。本教程将介绍 <code>scene.InteractiveScene</code>，使用统一接口生成 Prim 并管理仿真中的实体。</p><p>从较高层次看，<span class="term">Interactive Scene</span> 是一组 Scene 实体的集合。实体既可以是 Ground Plane、Light 等非交互式 Prim，也可以是 Articulation、Rigid Object 等交互式 Prim，还可以是 Camera、LiDAR 等 Sensor。</p><p>与手动管理方式相比，Interactive Scene 具有以下优点：</p><ul class="simple">
+<li><p>减轻了用户单独对每个 <span class="term">Asset</span> 进行 <span class="term">Spawn</span> 的需要，因为这是隐式处理的。</p></li>
+<li><p>允许用户友好地克隆多个 <span class="term">Environments</span> 的 <span class="term">Scene</span> <span class="term">Prims</span>。</p></li>
+<li><p>将所有 <span class="term">Scene</span> 实体收集到单个 <span class="term">Object</span> 中，这使它们更易于管理。</p></li>
+</ul>
+<p>本教程将改造上一节的 Cartpole 示例，用 InteractiveScene 取代手写的场景创建函数。虽然该示例规模较小，但随着 Asset 和 Sensor 数量增加，统一的 Scene 管理接口会显著降低代码复杂度。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应的是 <code class="docutils literal notranslate"><span class="pre">create_scene.py</span></code> <span class="term">Script</span>内
+<code class="docutils literal notranslate"><span class="pre">scripts/tutorials/02_scene</span></code>.</p>
+<details class="code-details">
+<summary>代码 <span class="term">create_scene.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""This script demonstrates how to use the interactive scene interface to setup a scene with multiple prims.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Usage</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/02_scene/create_scene.py --num_envs 32</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on using the interactive scene interface."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to spawn."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="c1">##</span>
+<span class="c1"># Pre-defined configs</span>
+<span class="c1">##</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CARTPOLE_CFG</span>  <span class="c1"># isort:skip</span>
+
+
+<span class="hll"><span class="nd">@configclass</span>
+</span><span class="hll"><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+</span><span class="hll"><span class="w">    </span><span class="sd">"""Configuration for a cart-pole scene."""</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># ground plane</span>
+</span><span class="hll">    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># lights</span>
+</span><span class="hll">    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># articulation</span>
+</span><span class="hll">    <span class="n">cartpole</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot"</span><span class="p">)</span>
+</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Runs the simulation loop."""</span>
+<span class="hll">    <span class="c1"># Extract scene entities</span>
+</span><span class="hll">    <span class="c1"># note: we only do this here for readability.</span>
+</span><span class="hll">    <span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"cartpole"</span><span class="p">]</span>
+</span>    <span class="c1"># Define simulation stepping</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># Simulation loop</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># Reset</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># reset counter</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># reset the scene entities</span>
+            <span class="c1"># root state</span>
+            <span class="c1"># we offset the root state by the origin since the states are written in simulation world frame</span>
+            <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
+            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+            <span class="c1"># set joint positions with some noise</span>
+            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
+<span class="hll">            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+</span><span class="hll">            <span class="c1"># clear internal buffers</span>
+</span>            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting robot state..."</span><span class="p">)</span>
+        <span class="c1"># Apply random action</span>
+        <span class="c1"># -- generate random joint efforts</span>
+        <span class="n">efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">5.0</span>
+        <span class="c1"># -- apply action to the robot</span>
+<span class="hll">        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="n">efforts</span><span class="p">)</span>
+</span><span class="hll">        <span class="c1"># -- write data to sim</span>
+</span>        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="c1"># Perform step</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="c1"># Increment counter</span>
+<span class="hll">        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span class="hll">        <span class="c1"># Update buffers</span>
+</span>        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># Load kit helper</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="c1"># Set main camera</span>
+<span class="hll">    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+</span><span class="hll">    <span class="c1"># Design scene</span>
+</span><span class="hll">    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+</span>    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+    <span class="c1"># Play the simulator</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># Now we are ready!</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+    <span class="c1"># Run the simulator</span>
+    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p>整体代码与前面的教程相似，但有几个关键差异，下面将逐一说明。</p><section>
+<h3 id="scene-configuration"><span class="heading-number">2.1</span> <span class="term">Scene Configuration</span></h3>
+<p>Scene 由多个实体组成，每个实体都有自己的 Configuration。这些配置定义在继承 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg" title="isaaclab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveSceneCfg</span></code></a> 的 Configuration Class 中，再将其实例传给 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> 构造函数来创建 Scene。</p><p>Cartpole 示例包含与上一教程相同的 Scene 实体，但现在统一声明在 <code class="xref py py-class docutils literal notranslate"><span class="pre">CartpoleSceneCfg</span></code> 中，而不再手动逐个生成。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Configuration for a cart-pole scene."""</span>
+
+    <span class="c1"># ground plane</span>
+    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+
+    <span class="c1"># lights</span>
+    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="p">)</span>
+
+    <span class="c1"># articulation</span>
+    <span class="n">cartpole</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Configuration Class 中的变量名就是访问 Scene 实体时使用的键。例如，可用 <code class="docutils literal notranslate"><span class="pre">scene["cartpole"]</span></code> 取得 Cartpole。后文会进一步说明访问方式；这里先介绍各类实体的配置。</p><p>Rigid Object 和 Articulation 仍使用各自的 Configuration Class。Ground Plane 和 Light 属于非交互式 Prim，使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.AssetBaseCfg" title="isaaclab.assets.AssetBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.AssetBaseCfg</span></code></a>；Cartpole 是交互式 Articulation，使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg" title="isaaclab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationCfg</span></code></a>。非交互式 Prim（既不是 Asset，也不是 Sensor）不会由 Scene 在每个 Simulation Step 中更新。</p><p>另一个重要区别是不同 Prim 的路径写法：</p><ul class="simple">
+<li><p><span class="term">Ground Plane</span>： <code class="docutils literal notranslate"><span class="pre">/World/defaultGroundPlane</span></code></p></li>
+<li><p>光源： <code class="docutils literal notranslate"><span class="pre">/World/Light</span></code></p></li>
+<li><p>卡特波尔： <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Robot</span></code></p></li>
+</ul>
+<p>Omn<code class="docutils literal notranslate"><span class="pre">i</span></code>verse 在 USD Stage 中以层级图组织 Prim，Prim Path 表示其在图中的位置。Ground Plane 和 Light 使用绝对路径；Cartpole 使用包含 <code class="docutils literal notranslate"><span class="pre">ENV_REGEX_NS</span></code> 的相对路径。创建 Scene 时，该变量会替换为 <code class="docutils literal notranslate"><span class="pre">/World/envs/env_{i}</span></code> 形式的 Environment Namespace，因此路径中包含 ENV_REGEX_NS 的实体会被复制到每个 Environment。</p></section>
+<section>
+<h3 id="scene-instantiation"><span class="heading-number">2.2</span> <span class="term">Scene</span> 实例化</h3>
+<p>现在不再调用 <code class="docutils literal notranslate"><span class="pre">design_scene</span></code>() 手动创建 Scene，而是实例化 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a>，并传入 <code class="docutils literal notranslate"><span class="pre">CartpoleSceneCfg</span></code>。创建 Configuration 时，<code class="docutils literal notranslate"><span class="pre">num_envs</span></code> 参数指定 Environment 副本数量，Scene 会据此完成克隆。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Design scene</span>
+    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="accessing-scene-elements"><span class="heading-number">2.3</span> 访问 <span class="term">Scene</span> 元素</h3>
+<p>可以通过 <code class="docutils literal notranslate"><span class="pre">[]</span></code> 运算符从 <code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code> 取得实体。运算符接收字符串键，并返回 Configuration Class 中同名的实体；例如键 <code class="docutils literal notranslate"><span class="pre">"cartpole"</span></code> 对应 Cartpole。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Extract scene entities</span>
+    <span class="c1"># note: we only do this here for readability.</span>
+    <span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"cartpole"</span><span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="running-the-simulation-loop"><span class="heading-number">2.4</span> 运行 <span class="term">Simulation Loop</span></h3>
+<p>Script 的其余部分与前面的示例基本相同。主要差别是原先直接调用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation" title="isaaclab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a> Method 的位置，改为调用以下 InteractiveScene Method：</p><ul class="simple">
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.reset" title="isaaclab.assets.Articulation.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.reset()</span></code></a> ⟶ <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.reset" title="isaaclab.scene.InteractiveScene.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.reset()</span></code></a></p></li>
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.write_data_to_sim" title="isaaclab.assets.Articulation.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.write_data_to_sim()</span></code></a> ⟶ <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.write_data_to_sim" title="isaaclab.scene.InteractiveScene.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.write_data_to_sim()</span></code></a></p></li>
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.update" title="isaaclab.assets.Articulation.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code></a> ⟶ <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.update" title="isaaclab.scene.InteractiveScene.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scene.InteractiveScene.update()</span></code></a></p></li>
+</ul>
+<p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> 会在内部对 Scene 中的相应实体调用这些 Method。</p></section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>执行 Script，并通过 <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> 参数在 Scene 中模拟 32 个 Cartpole：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/02_scene/create_scene.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+</pre></div>
+</div>
+<p>窗口中会显示 32 个随机摆动的 Cartpole。可以用鼠标旋转 Camera，并使用方向键在 Scene 中移动。</p><figure class="align-center" style="width: 100%">
+<img alt="result of create_scene.py" src="../../assets/tutorial_creating_a_scene.jpg" class="tutorial-image">
+</figure>
+<p>本教程介绍了如何用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> 创建包含多个 Asset 的 Scene，以及如何通过 <code class="docutils literal notranslate"><span class="pre">num_envs</span></code> 克隆多个 Environment。</p><p><code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> Extension 中的 Task 还提供了更多 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveSceneCfg" title="isaaclab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveSceneCfg</span></code></a> 示例，可查阅 Source Code 了解复杂 Scene 的用法。</p></section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="../01_assets/run_surface_gripper.html">← 上一篇：与 Surface Gripper 交互</a>
+        <a href="../03_envs/create_manager_base_env.html">下一篇：创建 Manager-Based Base Environment →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/02_scene/create_scene.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#scene-configuration" class="toc-level-2">2.1 Scene Configuration</a><a href="#scene-instantiation" class="toc-level-2">2.2 Scene 实例化</a><a href="#accessing-scene-elements" class="toc-level-2">2.3 访问 Scene 元素</a><a href="#running-the-simulation-loop" class="toc-level-2">2.4 运行 Simulation Loop</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

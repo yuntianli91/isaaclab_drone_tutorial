@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>在 Robot 上添加 Sensors — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a class="active" data-search-item href="add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 在 Robot 上添加 Sensors</h1>
+      <article class="bd-article">
+                  
+  <section id="adding-sensors-on-a-robot">
+<span id="tutorial-add-sensors-on-robot"></span>
+<p>Asset Class 用于创建和模拟 <span class="term">Robot</span> 的物理实体，Sensor 则用于感知 Environment。Sensor 的更新频率通常低于 Simulation，可提供本体感知或外部感知信息。例如，Camera 获取视觉数据，Contact Sensor 检测 Robot 与 Environment 的接触状态。</p><p>本教程以具有12个自由度的 ANYmal-C 四足 Robot 为例，演示如何添加不同类型的 Sensor。ANYmal-C 的四条腿各包含3个自由度。</p><ul class="simple">
+<li><p><span class="term">Camera</span> <span class="term">Sensor</span>位于<span class="term">Robot</span>的头部，提供RGB-D图像</p></li>
+<li><p>提供地形高度信息的Height Scanner <span class="term">Sensor</span></p></li>
+<li><p>联系方式 <span class="term">Sensors</span> 脚上的 <span class="term">Robot</span> 提供了联系信息</p></li>
+</ul>
+<p>本教程延续上一节的 <span class="term">Interactive Scene</span> 示例，并在 <code>scene.InteractiveScene</code> 中配置和管理这些 Sensor。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>add_sensors_on_robot.py</code>，位于 <code>scripts/tutorials/04_sensors</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">add_sensors_on_robot.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""</span>
+<span class="sd">This script demonstrates how to add and simulate on-board sensors for a robot.</span>
+
+<span class="sd">We add the following sensors on the quadruped robot, ANYmal-C (ANYbotics):</span>
+
+<span class="sd">* USD-Camera: This is a camera sensor that is attached to the robot's base.</span>
+<span class="sd">* Height Scanner: This is a height scanner sensor that is attached to the robot's base.</span>
+<span class="sd">* Contact Sensor: This is a contact sensor that is attached to the robot's feet.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Usage</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --enable_cameras</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on adding sensors on a robot."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to spawn."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">CameraCfg</span><span class="p">,</span> <span class="n">ContactSensorCfg</span><span class="p">,</span> <span class="n">RayCasterCfg</span><span class="p">,</span> <span class="n">patterns</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="c1">##</span>
+<span class="c1"># Pre-defined configs</span>
+<span class="c1">##</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets.robots.anymal</span><span class="w"> </span><span class="kn">import</span> <span class="n">ANYMAL_C_CFG</span>  <span class="c1"># isort: skip</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SensorsSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Design the scene with sensors on the robot."""</span>
+
+    <span class="c1"># ground plane</span>
+    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+
+    <span class="c1"># lights</span>
+    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="p">)</span>
+
+    <span class="c1"># robot</span>
+    <span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">ANYMAL_C_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot"</span><span class="p">)</span>
+
+    <span class="c1"># sensors</span>
+<span class="hll">    <span class="n">camera</span> <span class="o">=</span> <span class="n">CameraCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base/front_cam"</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">update_period</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">data_types</span><span class="o">=</span><span class="p">[</span><span class="s2">"rgb"</span><span class="p">,</span> <span class="s2">"distance_to_image_plane"</span><span class="p">],</span>
+</span><span class="hll">        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PinholeCameraCfg</span><span class="p">(</span>
+</span><span class="hll">            <span class="n">focal_length</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">focus_distance</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span> <span class="n">horizontal_aperture</span><span class="o">=</span><span class="mf">20.955</span><span class="p">,</span> <span class="n">clipping_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.0e5</span><span class="p">)</span>
+</span><span class="hll">        <span class="p">),</span>
+</span><span class="hll">        <span class="n">offset</span><span class="o">=</span><span class="n">CameraCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.510</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.015</span><span class="p">),</span> <span class="n">rot</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">convention</span><span class="o">=</span><span class="s2">"ros"</span><span class="p">),</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="n">height_scanner</span> <span class="o">=</span> <span class="n">RayCasterCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base"</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">update_period</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">offset</span><span class="o">=</span><span class="n">RayCasterCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)),</span>
+</span><span class="hll">        <span class="n">ray_alignment</span><span class="o">=</span><span class="s2">"yaw"</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">pattern_cfg</span><span class="o">=</span><span class="n">patterns</span><span class="o">.</span><span class="n">GridPatternCfg</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">[</span><span class="mf">1.6</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
+</span><span class="hll">        <span class="n">debug_vis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">],</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="n">contact_forces</span> <span class="o">=</span> <span class="n">ContactSensorCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/.*_FOOT"</span><span class="p">,</span> <span class="n">update_period</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">history_length</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">debug_vis</span><span class="o">=</span><span class="kc">True</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">
+</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Run the simulator."""</span>
+    <span class="c1"># Define simulation stepping</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">sim_time</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Simulate physics</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># Reset</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># reset counter</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># reset the scene entities</span>
+            <span class="c1"># root state</span>
+            <span class="c1"># we offset the root state by the origin since the states are written in simulation world frame</span>
+            <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
+            <span class="n">root_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+            <span class="c1"># set joint positions with some noise</span>
+            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+            <span class="p">)</span>
+            <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+            <span class="c1"># clear internal buffers</span>
+            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting robot state..."</span><span class="p">)</span>
+        <span class="c1"># Apply default actions to the robot</span>
+        <span class="c1"># -- generate actions/commands</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span>
+        <span class="c1"># -- apply action to the robot</span>
+        <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">targets</span><span class="p">)</span>
+        <span class="c1"># -- write data to sim</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="c1"># perform step</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="c1"># update sim-time</span>
+        <span class="n">sim_time</span> <span class="o">+=</span> <span class="n">sim_dt</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># update buffers</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+
+<span class="hll">        <span class="c1"># print information from the sensors</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="s2">"-------------------------------"</span><span class="p">)</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"camera"</span><span class="p">])</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="s2">"Received shape of rgb   image: "</span><span class="p">,</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"camera"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">"rgb"</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="s2">"Received shape of depth image: "</span><span class="p">,</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"camera"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">"distance_to_image_plane"</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="s2">"-------------------------------"</span><span class="p">)</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"height_scanner"</span><span class="p">])</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="s2">"Received max height value: "</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"height_scanner"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ray_hits_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="s2">"-------------------------------"</span><span class="p">)</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"contact_forces"</span><span class="p">])</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="s2">"Received max contact force of: "</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"contact_forces"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">net_forces_w</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+
+    <span class="c1"># Initialize the simulation context</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="c1"># Set main camera</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">(</span><span class="n">eye</span><span class="o">=</span><span class="p">[</span><span class="mf">3.5</span><span class="p">,</span> <span class="mf">3.5</span><span class="p">,</span> <span class="mf">3.5</span><span class="p">],</span> <span class="n">target</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+    <span class="c1"># Design scene</span>
+    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">SensorsSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+<span class="hll">    <span class="c1"># Play the simulator</span>
+</span><span class="hll">    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span>    <span class="c1"># Now we are ready!</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+    <span class="c1"># Run the simulator</span>
+    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p>与 Asset 一样，Sensor 也通过 Scene Configuration 加入 Scene。所有 Sensor 均继承 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBase" title="isaaclab.sensors.SensorBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.SensorBase</span></code></a>，并由各自的 Configuration Class 配置。每个 Sensor 可以通过 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.update_period" title="isaaclab.sensors.SensorBaseCfg.update_period"><code class="xref py py-attr docutils literal notranslate"><span class="pre">sensors.SensorBaseCfg.update_period</span></code></a> 单独设置更新周期，单位为秒。</p><p>Sensor 会根据 Prim Path 和 Sensor 类型连接到 Scene。部分 Sensor 会创建自己的 Prim，例如 Camera；另一些则依附于现有 Prim，例如 Contact Sensor 通过 Rigid Body Prim 上的 Contact Report API 工作。</p><p>下面依次介绍本教程使用的 Sensor 及其配置方式。更多信息请参阅 <code class="xref py py-mod docutils literal notranslate"><span class="pre">sensors</span></code> Module。</p><section>
+<h3 id="camera-sensor"><span class="heading-number">2.1</span> <span class="term">Camera</span> <span class="term">Sensor</span></h3>
+<p>Camera 使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg" title="isaaclab.sensors.CameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.CameraCfg</span></code></a> 配置。它基于 USD Camera Sensor，并通过 Omniverse Replicator API 捕获不同类型的数据。Camera 有对应的 Prim，因此会在指定 Prim Path 处创建。</p><p>Camera Sensor Configuration 包含以下参数：</p><ul class="simple">
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.spawn" title="isaaclab.sensors.CameraCfg.spawn"><code class="xref py py-attr docutils literal notranslate"><span class="pre">spawn</span></code></a>：要创建的 <span class="term">USD</span> <span class="term">Camera</span> 的类型。这可以是
+<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.PinholeCameraCfg" title="isaaclab.sim.spawners.sensors.PinholeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PinholeCameraCfg</span></code></a> 或者 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.sensors.FisheyeCameraCfg" title="isaaclab.sim.spawners.sensors.FisheyeCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">FisheyeCameraCfg</span></code></a>.</p></li>
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.offset" title="isaaclab.sensors.CameraCfg.offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">offset</span></code></a>：<span class="term">Camera</span> <span class="term">Sensor</span> 相对于父 <span class="term">Prim</span> 的偏移量。</p></li>
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.CameraCfg.data_types" title="isaaclab.sensors.CameraCfg.data_types"><code class="xref py py-attr docutils literal notranslate"><span class="pre">data_types</span></code></a>：要捕获的数据类型。这可以是 <code class="docutils literal notranslate"><span class="pre">rgb</span></code>,
+<code class="docutils literal notranslate"><span class="pre">distance_to_image_plane</span></code>, <code class="docutils literal notranslate"><span class="pre">normals</span></code>，或 <span class="term">USD</span> <span class="term">Camera</span> <span class="term">Sensor</span> 支持的其他类型。</p></li>
+</ul>
+<p>将 RGB-D Camera 安装到 Robot 头部时，需要给出它相对 Robot Base Frame 的 Offset，包括 Translation、Rotation 及 <code>convention</code>。</p><p>本教程将 Update Period 设为 0.1 s，即 Camera 以 10 Hz 更新。Prim Path 为 <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Robot/base/front_cam</span></code>：<code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}</span></code> 表示 Environment Namespace，<code>"Robot"</code> 是 Asset 名称，<code>"base"</code> 是 Camera 所附着的 Prim，<code>"front_cam"</code> 是 Camera Sensor 对应的 Prim。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="n">camera</span> <span class="o">=</span> <span class="n">CameraCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base/front_cam"</span><span class="p">,</span>
+        <span class="n">update_period</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">,</span>
+        <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span>
+        <span class="n">data_types</span><span class="o">=</span><span class="p">[</span><span class="s2">"rgb"</span><span class="p">,</span> <span class="s2">"distance_to_image_plane"</span><span class="p">],</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PinholeCameraCfg</span><span class="p">(</span>
+            <span class="n">focal_length</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">focus_distance</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span> <span class="n">horizontal_aperture</span><span class="o">=</span><span class="mf">20.955</span><span class="p">,</span> <span class="n">clipping_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.0e5</span><span class="p">)</span>
+        <span class="p">),</span>
+        <span class="n">offset</span><span class="o">=</span><span class="n">CameraCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.510</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.015</span><span class="p">),</span> <span class="n">rot</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">convention</span><span class="o">=</span><span class="s2">"ros"</span><span class="p">),</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="height-scanner"><span class="heading-number">2.2</span> Height Scanner</h3>
+<p>Height Scanner 是使用 NVIDIA Warp Ray-Casting Kernel 实现的虚拟 Sensor。<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCfg" title="isaaclab.sensors.RayCasterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.RayCasterCfg</span></code></a> 用于指定 Ray Pattern 和被投射的 Mesh。由于它是虚拟 Sensor，Scene 中不会创建对应 Prim，而是依附到现有 Prim 来确定 Sensor 位置。</p><p>本教程将 Height Scanner 安装到 Robot Base Frame。<code class="xref py py-attr docutils literal notranslate"><span class="pre">pattern</span></code> 属性定义 Ray Pattern，规则网格使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.patterns.html#isaaclab.sensors.patterns.GridPatternCfg" title="isaaclab.sensors.patterns.GridPatternCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GridPatternCfg</span></code></a>。由于这里只关心高度，不需要考虑 Robot 的 Roll 和 Pitch，因此将 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.RayCasterCfg.ray_alignment" title="isaaclab.sensors.RayCasterCfg.ray_alignment"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ray_alignment</span></code></a> 设为 "yaw"。</p><p>把 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg.debug_vis" title="isaaclab.sensors.SensorBaseCfg.debug_vis"><code class="xref py py-attr docutils literal notranslate"><span class="pre">debug_vis</span></code></a> 设为 True，可以显示 Ray 与 Mesh 的交点。</p><p>完整的 Height Scanner Configuration 如下：</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="n">height_scanner</span> <span class="o">=</span> <span class="n">RayCasterCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/base"</span><span class="p">,</span>
+        <span class="n">update_period</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span>
+        <span class="n">offset</span><span class="o">=</span><span class="n">RayCasterCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)),</span>
+        <span class="n">ray_alignment</span><span class="o">=</span><span class="s2">"yaw"</span><span class="p">,</span>
+        <span class="n">pattern_cfg</span><span class="o">=</span><span class="n">patterns</span><span class="o">.</span><span class="n">GridPatternCfg</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">[</span><span class="mf">1.6</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
+        <span class="n">debug_vis</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">mesh_prim_paths</span><span class="o">=</span><span class="p">[</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">],</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="contact-sensor"><span class="heading-number">2.3</span> <span class="term">Contact Sensor</span></h3>
+<p>Contact Sensor 封装 PhysX Contact Report API，用于获取 Robot 与 Environment 的接触信息。它要求在 Robot 的 Rigid Body 上启用该 API，可通过在 Asset Configuration 中将 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors" title="isaaclab.sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors"><code class="xref py py-attr docutils literal notranslate"><span class="pre">activate_contact_sensors</span></code></a> 设为 True 完成。</p><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensorCfg" title="isaaclab.sensors.ContactSensorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.ContactSensorCfg</span></code></a> 用于指定需要监测的 Prim。还可以启用额外选项，获取接触与离地时间，或筛选特定 Prim 之间的接触力。</p><p>本教程把 Contact Sensor 安装在 Robot 的四只脚上，名称分别为 LF_FOOT、<code class="docutils literal notranslate"><span class="pre">"RF_FOOT"</span></code>、<code class="docutils literal notranslate"><span class="pre">"LH_FOOT"</span></code> 和 <code class="docutils literal notranslate"><span class="pre">"RH_FOOT"</span></code>（首个名称为 <code class="docutils literal notranslate"><span class="pre">"LF_FOOT"</span></code>）。Prim Path 使用正则表达式 <code class="docutils literal notranslate"><span class="pre">".*_FOOT"</span></code>，一次匹配所有以 <code class="docutils literal notranslate"><span class="pre">"_FOOT"</span></code> 结尾的 Prim。</p><p>Update Period 设为 0，表示 Sensor 与 Simulation 同频更新。Contact Sensor 还可以保存历史数据；本例将 History Length 设为 6，保留最近 6 个 Simulation Step 的接触信息。</p><p>完整的 Contact Sensor Configuration 如下：</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="n">contact_forces</span> <span class="o">=</span> <span class="n">ContactSensorCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot/.*_FOOT"</span><span class="p">,</span> <span class="n">update_period</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">history_length</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">debug_vis</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="running-the-simulation-loop"><span class="heading-number">2.4</span> 运行 <span class="term">Simulation Loop</span></h3>
+<p>与 Asset 相同，Sensor 的 Buffer 和 Physics Handle 只会在 Simulation 开始时初始化，因此创建 Scene 后必须调用 <code class="docutils literal notranslate"><span class="pre">sim.reset()</span></code>。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Play the simulator</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>其余 Simulation Loop 与前面的教程相似。Sensor 随 Scene 一起更新，并按各自的 Update Period 管理内部 Buffer。</p><p>Sensor 数据可通过 <code class="docutils literal notranslate"><span class="pre">data</span></code> Property 访问。下面演示如何读取本教程中各 Sensor 的数据：</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>        <span class="c1"># print information from the sensors</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"-------------------------------"</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"camera"</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Received shape of rgb   image: "</span><span class="p">,</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"camera"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">"rgb"</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Received shape of depth image: "</span><span class="p">,</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"camera"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">"distance_to_image_plane"</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"-------------------------------"</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"height_scanner"</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Received max height value: "</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"height_scanner"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ray_hits_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"-------------------------------"</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"contact_forces"</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Received max contact force of: "</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">scene</span><span class="p">[</span><span class="s2">"contact_forces"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">net_forces_w</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>代码完成后，执行以下 Command 查看结果：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/add_sensors_on_robot.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2</span><span class="w"> </span>--enable_cameras
+</pre></div>
+</div>
+<p>窗口中会显示 Ground Plane、Light 和两台四足 Robot。Robot 周围的红色球体表示 Ray 与 Mesh 的交点。还可以切换 Viewport 的 Camera 视图，查看 Camera Sensor 捕获的图像；具体操作请参阅链接说明。</p><figure class="align-center" style="width: 100%">
+<img alt="result of add_sensors_on_robot.py" src="../../assets/tutorial_add_sensors.jpg" class="tutorial-image">
+</figure>
+<p>关闭窗口或在 Terminal 中按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 即可停止 Simulation。</p><p>本教程介绍了多种 Sensor 的配置和使用方式。<code class="xref py py-mod docutils literal notranslate"><span class="pre">sensors</span></code> Module 还提供其他 Sensor；<code class="docutils literal notranslate"><span class="pre">scripts/tutorials/04_sensors</span></code> 目录中包含最小示例，可用下列 Command 运行：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="c1"># Frame Transformer</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/run_frame_transformer.py
+
+<span class="c1"># Ray Caster</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/run_ray_caster.py
+
+<span class="c1"># Ray Caster Camera</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/run_ray_caster_camera.py
+
+<span class="c1"># USD Camera</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/04_sensors/run_usd_camera.py<span class="w"> </span>--enable_cameras
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="../03_envs/policy_inference_in_usd.html">← 上一篇：USD Environment 中的 Policy Inference</a>
+        <a href="../05_controllers/run_diff_ik.html">下一篇：使用 Task-Space Controller →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/04_sensors/add_sensors_on_robot.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#camera-sensor" class="toc-level-2">2.1 Camera Sensor</a><a href="#height-scanner" class="toc-level-2">2.2 Height Scanner</a><a href="#contact-sensor" class="toc-level-2">2.3 Contact Sensor</a><a href="#running-the-simulation-loop" class="toc-level-2">2.4 运行 Simulation Loop</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

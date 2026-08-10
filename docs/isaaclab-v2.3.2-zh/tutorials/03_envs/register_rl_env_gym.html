@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>注册 Environment — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a class="active" data-search-item href="register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 注册 Environment</h1>
+      <article class="bd-article">
+                  
+  <section id="registering-an-environment">
+<span id="tutorial-register-rl-env-gym"></span>
+<p>上一节创建 Cartpole Environment 时，需要直接导入 Environment Class 及其 Configuration Class，然后手动创建实例。</p><details class="code-details">
+<summary>上一篇教程中的<span class="term">Environment</span>创建</summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># create environment configuration</span>
+    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
+    <span class="c1"># setup RL environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</details><p>这种方式适合单个示例，但难以管理大量 <span class="term">Environment</span>。本教程将使用 <code>gymnasium.register()</code> 注册 Environment，使其能够通过 <code>gymnasium.make()</code> 按名称创建。</p><details class="code-details">
+<summary>本教程中的 <span class="term">Environment</span> 创建</summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_env_cfg</span>
+
+<span class="c1"># PLACEHOLDER: Extension template (do not remove this comment)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Random actions agent with Isaac Lab environment."""</span>
+    <span class="c1"># create environment configuration</span>
+    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">parse_env_cfg</span><span class="p">(</span>
+        <span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">use_fabric</span><span class="o">=</span><span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">disable_fabric</span>
+    <span class="p">)</span>
+    <span class="c1"># create environment</span>
+</pre></div>
+</div>
+</div>
+</details><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>random_agent.py</code>，位于 <code>scripts/environments</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">random_agent.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""Script to an environment with random action agent."""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Random agent for Isaac Lab environments."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+    <span class="s2">"--disable_fabric"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Disable fabric and use USD I/O operations."</span>
+<span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to simulate."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--task"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Name of the task."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">gymnasium</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gym</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab_tasks</span>  <span class="c1"># noqa: F401</span>
+<span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_env_cfg</span>
+</span><span class="hll">
+</span><span class="c1"># PLACEHOLDER: Extension template (do not remove this comment)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="hll"><span class="w">    </span><span class="sd">"""Random actions agent with Isaac Lab environment."""</span>
+</span><span class="hll">    <span class="c1"># create environment configuration</span>
+</span><span class="hll">    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">parse_env_cfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">use_fabric</span><span class="o">=</span><span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">disable_fabric</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="c1"># create environment</span>
+</span>    <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+
+    <span class="c1"># print info (this is vectorized environment)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO]: Gym observation space: </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">observation_space</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO]: Gym action space: </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">action_space</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="c1"># reset environment</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># simulate environment</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># run everything in inference mode</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+            <span class="c1"># sample actions from -1 to 1</span>
+            <span class="n">actions</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_space</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="c1"># apply actions</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span>
+
+    <span class="c1"># close the simulator</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> 继承 <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> 并遵循其标准 Interface。与传统 Gymnasium Environment 不同，它是 Vectorized Environment：同一进程会并行运行多个 Environment 实例，所有数据均以 Batch 形式返回。</p><p>Direct Workflow 的 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectRLEnv" title="isaaclab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectRLEnv</span></code></a> 同样继承 <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a>。<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.DirectMARLEnv" title="isaaclab.envs.DirectMARLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectMARLEnv</span></code></a> 虽不继承 Gymnasium，也可以采用相同方式注册和创建。</p><section>
+<h3 id="using-the-gym-registry"><span class="heading-number">2.1</span> 使用 Gymnasium Registry</h3><p>使用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">gymnasium.register()</span></code> 注册 Environment 时，需要提供 Environment ID、Environment Class 的 Entry Point，以及 Environment Configuration Class 的 Entry Point。示例代码将 Gymnasium 导入为 <code>gym</code>。</p><div class="admonition note">
+<p class="admonition-title">笔记</p>
+<p>该 <code class="xref py py-mod docutils literal notranslate"><span class="pre">gymnasium</span></code> 注册表是一个全局注册表。因此，重要的是要确保
+<span class="term">Environment</span> 名称是唯一的。否则注册时注册会报错
+<span class="term">Environment</span>。</p>
+</div>
+<section>
+<h4 id="manager-based-environments"><span class="heading-number">2.1.1</span> <span class="term">Manager-Based</span> <span class="term">Environments</span></h4>
+<p>Manager-Based Cartpole Environment 在 <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks.manager_based.classic.cartpole</span></code> 子 Package 中按如下方式注册：</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">gymnasium</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gym</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">agents</span>
+<span class="hll">
+</span><span class="c1">##</span>
+<span class="c1"># Register Gym environments.</span>
+<span class="c1">##</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">"Isaac-Cartpole-v0"</span><span class="p">,</span>
+<span class="hll">    <span class="n">entry_point</span><span class="o">=</span><span class="s2">"isaaclab.envs:ManagerBasedRLEnv"</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span>    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"env_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.cartpole_env_cfg:CartpoleEnvCfg"</span><span class="p">,</span>
+<span class="hll">        <span class="s2">"rl_games_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_ppo_cfg.yaml"</span><span class="p">,</span>
+</span>        <span class="s2">"rsl_rl_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.rsl_rl_ppo_cfg:CartpolePPORunnerCfg"</span><span class="p">,</span>
+        <span class="s2">"rsl_rl_with_symmetry_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"</span><span class="p">,</span>
+        <span class="s2">"skrl_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:skrl_ppo_cfg.yaml"</span><span class="p">,</span>
+        <span class="s2">"sb3_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:sb3_ppo_cfg.yaml"</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">"Isaac-Cartpole-RGB-v0"</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">"isaaclab.envs:ManagerBasedRLEnv"</span><span class="p">,</span>
+    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"env_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.cartpole_camera_env_cfg:CartpoleRGBCameraEnvCfg"</span><span class="p">,</span>
+        <span class="s2">"rl_games_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_camera_ppo_cfg.yaml"</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">"Isaac-Cartpole-Depth-v0"</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">"isaaclab.envs:ManagerBasedRLEnv"</span><span class="p">,</span>
+    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"env_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.cartpole_camera_env_cfg:CartpoleDepthCameraEnvCfg"</span><span class="p">,</span>
+        <span class="s2">"rl_games_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_camera_ppo_cfg.yaml"</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">"Isaac-Cartpole-RGB-ResNet18-v0"</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">"isaaclab.envs:ManagerBasedRLEnv"</span><span class="p">,</span>
+    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"env_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.cartpole_camera_env_cfg:CartpoleResNet18CameraEnvCfg"</span><span class="p">,</span>
+        <span class="s2">"rl_games_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_feature_ppo_cfg.yaml"</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">"Isaac-Cartpole-RGB-TheiaTiny-v0"</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">"isaaclab.envs:ManagerBasedRLEnv"</span><span class="p">,</span>
+    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"env_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.cartpole_camera_env_cfg:CartpoleTheiaTinyCameraEnvCfg"</span><span class="p">,</span>
+        <span class="s2">"rl_games_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_feature_ppo_cfg.yaml"</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">id</span></code> 参数是 Environment 名称。按照约定，Isaac Lab Environment 使用 <code class="docutils literal notranslate"><span class="pre">Isaac-</span></code> 前缀，便于在 Registry 中检索；其后通常依次包含 Task 和 Robot 名称。例如，ANYmal C 在平坦地形上的 Locomotion Environment 名为 <code class="docutils literal notranslate"><span class="pre">Isaac-Velocity-Flat-Anymal-C-v0</span></code>。<code>v&lt;N&gt;</code> 表示同一 Environment 的不同版本，可避免名称过长。</p><p><code class="docutils literal notranslate"><span class="pre">entry_point</span></code> 指定 Environment Class，格式为 <code>&lt;module&gt;:&lt;class&gt;</code>。Cartpole 的值是 <code class="docutils literal notranslate"><span class="pre">isaaclab.envs:ManagerBasedRLEnv</span></code>；创建 Environment 实例时，Gymnasium 会通过该字符串导入相应 Class。</p><p><code class="docutils literal notranslate"><span class="pre">env_cfg_entry_point</span></code> 指定默认 Environment Configuration。<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab_tasks/isaaclab_tasks.utils.html#isaaclab_tasks.utils.parse_env_cfg" title="isaaclab_tasks.utils.parse_env_cfg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">isaaclab_tasks.utils.parse_env_cfg()</span></code></a> 会加载该配置，再把它传给 <code class="xref py py-meth docutils literal notranslate"><span class="pre">gymnasium.make()</span></code>。Configuration Entry Point 可以指向 YAML 文件，也可以指向 Python Configuration Class。</p></section>
+<section>
+<h4 id="direct-environments"><span class="heading-number">2.1.2</span> Direct Environments</h4><p>Direct Environment 的注册方式相似，但 Entry Point 指向具体 Environment 实现 Class，而不是 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code></a>。名称还会加入 <code class="docutils literal notranslate"><span class="pre">-Direct</span></code> 后缀，以便与 Manager-Based Environment 区分。</p><p>下面是 <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks.direct.cartpole</span></code> 子 Package 中 Cartpole Environment 的注册方式：</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">gymnasium</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gym</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">agents</span>
+
+<span class="hll"><span class="c1">##</span>
+</span><span class="c1"># Register Gym environments.</span>
+<span class="c1">##</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">"Isaac-Cartpole-Direct-v0"</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.cartpole_env:CartpoleEnv"</span><span class="p">,</span>
+<span class="hll">    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+</span>        <span class="s2">"env_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.cartpole_env:CartpoleEnvCfg"</span><span class="p">,</span>
+        <span class="s2">"rl_games_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_ppo_cfg.yaml"</span><span class="p">,</span>
+<span class="hll">        <span class="s2">"rsl_rl_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.rsl_rl_ppo_cfg:CartpolePPORunnerCfg"</span><span class="p">,</span>
+</span>        <span class="s2">"skrl_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:skrl_ppo_cfg.yaml"</span><span class="p">,</span>
+        <span class="s2">"sb3_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:sb3_ppo_cfg.yaml"</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section>
+<h3 id="creating-the-environment"><span class="heading-number">2.2</span> 创建 <span class="term">Environment</span></h3>
+<p>Script 开头需要导入 <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks</span></code> Extension，让 Gymnasium Registry 获知其中提供的全部 Environment。导入会执行 <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code>，遍历各子 Package 并完成相应注册。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab_tasks</span>  <span class="c1"># noqa: F401</span>
+</pre></div>
+</div>
+<p>本教程从 Command Line 读取 Task 名称，用它解析默认 Configuration 并创建 Environment。Command Line 中的 Environment 数量、Simulation Device 和是否 Rendering 等参数，也会覆盖默认配置。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># create environment configuration</span>
+    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">parse_env_cfg</span><span class="p">(</span>
+        <span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">use_fabric</span><span class="o">=</span><span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">disable_fabric</span>
+    <span class="p">)</span>
+    <span class="c1"># create environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Environment 创建完成后，其余流程遵循标准的 Reset 和 Step Interface。</p></section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>代码完成后，执行以下 Command 查看结果：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+</pre></div>
+</div>
+<p>窗口中显示的内容与“创建 Manager-Based RL Environment”教程相似。关闭窗口或在 Terminal 中按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 即可停止 Simulation。</p><figure class="align-center" style="width: 100%">
+<img alt="result of random_agent.py" src="../../assets/tutorial_register_environment.jpg" class="tutorial-image">
+</figure>
+<p>还可以通过 <code class="docutils literal notranslate"><span class="pre">--device</span></code> Flag 显式选择 Simulation Device：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--device<span class="w"> </span>cpu
+</pre></div>
+</div>
+<p>传入 <code class="docutils literal notranslate"><span class="pre">--device</span> <span class="pre">cpu</span></code> 后，Simulation 在 CPU 上运行，便于 Debugging，但速度会明显慢于 GPU Simulation。</p></section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="create_direct_rl_env.html">← 上一篇：创建 Direct Workflow RL Environment</a>
+        <a href="run_rl_training.html">下一篇：使用 RL Agent 训练 →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/03_envs/register_rl_env_gym.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#using-the-gym-registry" class="toc-level-2">2.1 使用 Gymnasium Registry</a><a href="#manager-based-environments" class="toc-level-3">2.1.1 Manager-Based Environments</a><a href="#direct-environments" class="toc-level-3">2.1.2 Direct Environments</a><a href="#creating-the-environment" class="toc-level-2">2.2 创建 Environment</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

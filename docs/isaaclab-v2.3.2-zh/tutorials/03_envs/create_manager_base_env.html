@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>创建 Manager-Based Base Environment — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a class="active" data-search-item href="create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 创建 Manager-Based Base Environment</h1>
+      <article class="bd-article">
+                  
+  <section id="creating-a-manager-based-base-environment">
+<span id="tutorial-create-manager-base-env"></span>
+<p><span class="term">Environment</span> 将 Scene、Observation Space、Action Space 和 Reset Event 等仿真要素组合为统一接口。在 Isaac Lab 中，Manager-Based Environment 主要由 <code>envs.ManagerBasedEnv</code> 和 <code>envs.ManagerBasedRLEnv</code> 实现。后者增加了 Reward、Termination、Curriculum 和 Command，适用于 RL Task；前者更适合传统Robot 控制。</p><p>本教程以 Cartpole 为例，介绍 <code>envs.ManagerBasedEnv</code> 及其 Configuration Class <code>envs.ManagerBasedEnvCfg</code>，并说明 Manager-Based Workflow 的各个组成部分。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>create_cartpole_base_env</code>，位于 <code>scripts/tutorials/03_envs</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">create_cartpole_base_env.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""</span>
+<span class="sd">This script demonstrates how to create a simple environment with a cartpole. It combines the concepts of</span>
+<span class="sd">scene, action, observation and event managers to create an environment.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on creating a cartpole base environment."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to spawn."</span><span class="p">)</span>
+
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.envs.mdp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">mdp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">ManagerBasedEnvCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationGroupCfg</span> <span class="k">as</span> <span class="n">ObsGroup</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ObservationTermCfg</span> <span class="k">as</span> <span class="n">ObsTerm</span>
+<span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">CartpoleSceneCfg</span>
+</span><span class="hll">
+</span>
+<span class="nd">@configclass</span>
+<span class="hll"><span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="w">    </span><span class="sd">"""Action specifications for the environment."""</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="nd">@configclass</span>
+</span><span class="hll"><span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="w">    </span><span class="sd">"""Observation specifications for the environment."""</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="nd">@configclass</span>
+</span><span class="hll">    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+</span><span class="hll"><span class="w">        </span><span class="sd">"""Observations for policy group."""</span>
+</span><span class="hll">
+</span><span class="hll">        <span class="c1"># observation terms (order preserved)</span>
+</span><span class="hll">        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+</span><span class="hll">        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+</span><span class="hll">
+</span>        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="hll">            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># observation groups</span>
+</span><span class="hll">    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="nd">@configclass</span>
+</span><span class="hll"><span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+</span><span class="hll"><span class="w">    </span><span class="sd">"""Configuration for events."""</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># on startup</span>
+</span><span class="hll">    <span class="n">add_pole_mass</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_mass</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">mode</span><span class="o">=</span><span class="s2">"startup"</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll">            <span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"pole"</span><span class="p">]),</span>
+</span><span class="hll">            <span class="s2">"mass_distribution_params"</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+</span><span class="hll">            <span class="s2">"operation"</span><span class="p">:</span> <span class="s2">"add"</span><span class="p">,</span>
+</span><span class="hll">        <span class="p">},</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># on reset</span>
+</span><span class="hll">    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">mode</span><span class="o">=</span><span class="s2">"reset"</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+</span><span class="hll">            <span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">]),</span>
+</span><span class="hll">            <span class="s2">"position_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll">            <span class="s2">"velocity_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+</span><span class="hll">        <span class="p">},</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">mode</span><span class="o">=</span><span class="s2">"reset"</span><span class="p">,</span>
+</span>        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"cart_to_pole"</span><span class="p">]),</span>
+<span class="hll">            <span class="s2">"position_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+</span><span class="hll">            <span class="s2">"velocity_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+</span><span class="hll">        <span class="p">},</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="nd">@configclass</span>
+</span><span class="hll"><span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+</span><span class="hll"><span class="w">    </span><span class="sd">"""Configuration for the cartpole environment."""</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># Scene settings</span>
+</span><span class="hll">    <span class="n">scene</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.5</span><span class="p">)</span>
+</span><span class="hll">    <span class="c1"># Basic settings</span>
+</span><span class="hll">    <span class="n">observations</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+</span><span class="hll">    <span class="n">actions</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+</span><span class="hll">    <span class="n">events</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span class="hll"><span class="w">        </span><span class="sd">"""Post initialization."""</span>
+</span><span class="hll">        <span class="c1"># viewer settings</span>
+</span>        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">[</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">lookat</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
+        <span class="c1"># step settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># env step every 4 sim steps: 200Hz / 4 = 50Hz</span>
+<span class="hll">        <span class="c1"># simulation settings</span>
+</span><span class="hll">        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>  <span class="c1"># sim step every 5ms: 200Hz</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+</span><span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># parse the arguments</span>
+    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+<span class="hll">    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
+</span>    <span class="c1"># setup base environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+
+<span class="hll">    <span class="c1"># simulate physics</span>
+</span>    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+            <span class="c1"># reset</span>
+<span class="hll">            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+</span><span class="hll">                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+</span>                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting environment..."</span><span class="p">)</span>
+            <span class="c1"># sample random actions</span>
+            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+<span class="hll">            <span class="c1"># step the environment</span>
+</span><span class="hll">            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
+</span>            <span class="c1"># print current orientation of pole</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[Env 0]: Pole joint: "</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">"policy"</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="c1"># update counter</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># close the environment</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> 封装了与 Simulation 交互时的大部分细节，为用户提供简洁统一的 Environment Interface。它由以下组件组成：</p><ul class="simple">
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene" title="isaaclab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> - 用于 <span class="term">Simulation</span> 的 <span class="term">Scene</span>。</p></li>
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager" title="isaaclab.managers.ActionManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionManager</span></code></a> - 处理 <span class="term">Actions</span> 的 <span class="term">Manager</span>。</p></li>
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager" title="isaaclab.managers.ObservationManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationManager</span></code></a> - 处理 <span class="term">Observations</span> 的 <span class="term">Manager</span>。</p></li>
+<li><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventManager" title="isaaclab.managers.EventManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.EventManager</span></code></a> - 调度操作的<span class="term">Manager</span>（例如<span class="term">Domain Randomization</span>）
+在指定的 <span class="term">Simulation</span> <span class="term">Events</span>。例如，在启动时、<span class="term">Reset</span>时或定期间隔时。</p></li>
+</ul>
+<p>只需重新配置这些组件，便可用较少改动创建同一 Environment 的不同变体。本教程将介绍 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> 以及新 Environment 的配置方法。</p><section>
+<h3 id="designing-the-scene"><span class="heading-number">2.1</span> 设计 <span class="term">Scene</span></h3>
+<p>创建 Environment 的第一步是配置 Scene。Cartpole Environment 沿用上一教程的 Scene，因此这里不再重复代码；详细配置方式请参阅“使用 Interactive Scene”。</p></section>
+<section>
+<h3 id="defining-actions"><span class="heading-number">2.2</span> 定义 <span class="term">Actions</span></h3>
+<p>此前我们直接调用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.set_joint_effort_target" title="isaaclab.assets.Articulation.set_joint_effort_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.set_joint_effort_target()</span></code></a> 向 Cartpole 发送 Action。本教程改用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionManager" title="isaaclab.managers.ActionManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionManager</span></code></a> 统一处理 Action。</p><p>Action Manager 可以包含多个 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.ActionTerm" title="isaaclab.managers.ActionTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionTerm</span></code></a>，每个 Action Term 负责控制 Environment 的一个部分。例如，机械臂可以分别使用一个 Term 控制手臂关节，另一个 Term 控制 Gripper，从而为不同组件采用不同的控制方式。</p><p>在 Cartpole Environment 中，目标是控制施加在滑车上的力以保持杆的平衡，因此只需创建一个用于控制该作用力的 Action Term。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Action specifications for the environment."""</span>
+
+    <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">mdp</span><span class="o">.</span><span class="n">JointEffortActionCfg</span><span class="p">(</span><span class="n">asset_name</span><span class="o">=</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="defining-observations"><span class="heading-number">2.3</span> 定义 <span class="term">Observations</span></h3>
+<p>Scene 表示 Environment 的完整状态，Observation 则表示 Agent 能够观测到的部分。Agent 根据 Observation 决定采取什么 Action。在 Isaac Lab 中，Observation 由 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationManager" title="isaaclab.managers.ObservationManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationManager</span></code></a> 计算。</p><p>Observation Manager 可以包含多个 Observation Term，并将其划分为不同的 Observation Group，以定义不同的 Observation Space。例如，分层控制可以为底层 Controller 和高层 Controller 分别提供一个 Group。同一 Group 中的所有 Environment 必须具有相同维度。</p><p>本教程只定义名为 <code class="docutils literal notranslate"><span class="pre">"policy"</span></code> 的 Observation Group。该名称虽非强制，但是 Isaac Lab 多种 Wrapper 的约定。Group 通过继承 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationGroupCfg" title="isaaclab.managers.ObservationGroupCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationGroupCfg</span></code></a> 定义，可统一设置是否加入 Noise，以及是否将各 Observation 拼接为单个 Tensor。</p><p>每个 Observation Term 使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationTermCfg" title="isaaclab.managers.ObservationTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ObservationTermCfg</span></code></a> 定义，其中 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationTermCfg.func" title="isaaclab.managers.ObservationTermCfg.func"><code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.ObservationTermCfg.func</span></code></a> 指定计算该 Observation 的 Function 或 Callable Class。还可以配置 Noise、Clipping 和 Scaling；本教程均使用默认值。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Observation specifications for the environment."""</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Observations for policy group."""</span>
+
+        <span class="c1"># observation terms (order preserved)</span>
+        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># observation groups</span>
+    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="defining-events"><span class="heading-number">2.4</span> 定义 <span class="term">Events</span></h3>
+<p>至此已经定义 Cartpole Environment 的 Scene、Action 和 Observation。Event 同样通过 Configuration Class 声明，再交给对应 Manager 处理。</p><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventManager" title="isaaclab.managers.EventManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.EventManager</span></code></a> 负责在特定时机修改 Simulation 状态，例如重置或随机化 Scene、随机化质量和摩擦等物理属性，以及修改颜色和纹理等视觉属性。每个 Event 由 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg" title="isaaclab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.EventTermCfg</span></code></a> 定义，其中 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg.func" title="isaaclab.managers.EventTermCfg.func"><code class="xref py py-attr docutils literal notranslate"><span class="pre">managers.EventTermCfg.func</span></code></a> 指定实际执行 Event 的 Function 或 Callable Class。</p><p>Event Term 还需要 mode，用于指定执行时机。也可以修改 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnv</span></code></a> 以支持自定义 Mode；Isaac Lab 默认提供三种常用 Mode：</p><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">"startup"</span></code> - <span class="term">Event</span> 仅在 <span class="term">Environment</span> 启动时发生一次。</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">"reset"</span></code> - <span class="term">Event</span> 出现在 <span class="term">Environment</span> <span class="term">Termination</span> 和 <span class="term">Reset</span> 上。</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">"interval"</span></code> - <span class="term">Event</span> 以给定间隔执行，即在一定数量的 <span class="term">Steps</span> 之后定期执行。</p></li>
+</ul>
+<p>本例在 Startup 时随机化杆的质量。该操作开销较高，只需执行一次；此外还定义一个 Reset Event，在每次重置时随机化滑车和杆的初始关节状态。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Configuration for events."""</span>
+
+    <span class="c1"># on startup</span>
+    <span class="n">add_pole_mass</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_mass</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">"startup"</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"pole"</span><span class="p">]),</span>
+            <span class="s2">"mass_distribution_params"</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+            <span class="s2">"operation"</span><span class="p">:</span> <span class="s2">"add"</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+    <span class="c1"># on reset</span>
+    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">"reset"</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"slider_to_cart"</span><span class="p">]),</span>
+            <span class="s2">"position_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+            <span class="s2">"velocity_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+    <span class="n">reset_pole_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">"reset"</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"asset_cfg"</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"cart_to_pole"</span><span class="p">]),</span>
+            <span class="s2">"position_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.125</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+            <span class="s2">"velocity_range"</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">0.01</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="tying-it-all-together"><span class="heading-number">2.5</span> 将它们结合在一起</h3>
+<p>完成 Scene 和各 Manager 的配置后，通过 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg" title="isaaclab.envs.ManagerBasedEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg</span></code></a> 组合完整的 Environment Configuration，其中包含 Scene、Action、Observation 和 Event Configuration。</p><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnvCfg.sim" title="isaaclab.envs.ManagerBasedEnvCfg.sim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg.sim</span></code></a> 还用于设置 Timestep、Gravity 等 Simulation 参数。它已提供默认值；如需修改，建议在 Configuration 初始化后自动调用的 <code class="xref py py-meth docutils literal notranslate"><span class="pre">__post_init__()</span></code> Method 中完成。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Configuration for the cartpole environment."""</span>
+
+    <span class="c1"># Scene settings</span>
+    <span class="n">scene</span> <span class="o">=</span> <span class="n">CartpoleSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.5</span><span class="p">)</span>
+    <span class="c1"># Basic settings</span>
+    <span class="n">observations</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+    <span class="n">actions</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+    <span class="n">events</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Post initialization."""</span>
+        <span class="c1"># viewer settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span> <span class="o">=</span> <span class="p">[</span><span class="mf">4.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">lookat</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
+        <span class="c1"># step settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># env step every 4 sim steps: 200Hz / 4 = 50Hz</span>
+        <span class="c1"># simulation settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>  <span class="c1"># sim step every 5ms: 200Hz</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="running-the-simulation"><span class="heading-number">2.6</span> 运行 Simulation</h3><p>多数细节已经封装到 Environment Configuration 中，因此 Simulation Loop 非常简洁：调用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.reset" title="isaaclab.envs.ManagerBasedEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.reset()</span></code></a> 重置 Environment，调用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv.step" title="isaaclab.envs.ManagerBasedEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.step()</span></code></a> 推进一步。两者都会返回 Observation 和 Info 字典，后者可包含供 Agent 决策使用的附加信息。</p><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv" title="isaaclab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> 不包含 Termination 概念，因为 Termination 取决于具体的 Episodic Task。用户需要自行定义终止条件；本教程仅按固定间隔重置 Simulation。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># parse the arguments</span>
+    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">CartpoleEnvCfg</span><span class="p">()</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
+    <span class="c1"># setup base environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+
+    <span class="c1"># simulate physics</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+            <span class="c1"># reset</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">300</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">80</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting environment..."</span><span class="p">)</span>
+            <span class="c1"># sample random actions</span>
+            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+            <span class="c1"># step the environment</span>
+            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">)</span>
+            <span class="c1"># print current orientation of pole</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[Env 0]: Pole joint: "</span><span class="p">,</span> <span class="n">obs</span><span class="p">[</span><span class="s2">"policy"</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="c1"># update counter</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># close the environment</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>整个 Simulation Loop 放在 <code class="xref py py-meth docutils literal notranslate"><span class="pre">torch.inference_mode()</span></code> Context Manager 中。Environment 内部使用 PyTorch 运算，但推理过程不需要梯度；关闭 Autograd 可避免不必要的计算和内存开销。</p></section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>执行以下 Command 运行本教程创建的基础 Environment：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_cartpole_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+</pre></div>
+</div>
+<p>窗口中会显示 Ground Plane、Light 和多个 Cartpole，并向 Cartpole 应用随机 Action。屏幕右下角还会显示名为 <code class="docutils literal notranslate"><span class="pre">"Isaac</span> <span class="pre">Lab"</span></code> 的 UI，其中提供 Debugging 和 Visualization 控件。</p><figure class="align-center" style="width: 100%">
+<img alt="result of create_cartpole_base_env.py" src="../../assets/tutorial_create_manager_rl_env.jpg" class="tutorial-image">
+</figure>
+<p>关闭窗口或在启动 Simulation 的 Terminal 中按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 即可停止。</p><p>本教程介绍了构建基础 Environment 所需的各种 Manager。<code class="docutils literal notranslate"><span class="pre">scripts/tutorials/03_envs</span></code> 目录还包含更多基础 Environment 示例，可用下列 Command 运行：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="c1"># Floating cube environment with custom action term for PD control</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_cube_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+
+<span class="c1"># Quadrupedal locomotion environment with a policy that interacts with the environment</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/create_quadruped_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
+</pre></div>
+</div>
+<p>下一教程将介绍 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedRLEnv" title="isaaclab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a>，以及如何用它创建 Markov Decision Process（MDP）。</p></section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="../02_scene/create_scene.html">← 上一篇：使用 Interactive Scene</a>
+        <a href="create_manager_rl_env.html">下一篇：创建 Manager-Based RL Environment →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/03_envs/create_manager_base_env.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#designing-the-scene" class="toc-level-2">2.1 设计 Scene</a><a href="#defining-actions" class="toc-level-2">2.2 定义 Actions</a><a href="#defining-observations" class="toc-level-2">2.3 定义 Observations</a><a href="#defining-events" class="toc-level-2">2.4 定义 Events</a><a href="#tying-it-all-together" class="toc-level-2">2.5 将它们结合在一起</a><a href="#running-the-simulation" class="toc-level-2">2.6 运行 Simulation</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

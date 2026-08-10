@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>使用 Task-Space Controller — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a class="active" data-search-item href="run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 使用 Task-Space Controller</h1>
+      <article class="bd-article">
+                  
+  <section id="using-a-task-space-controller">
+
+<p>前面的教程主要在 Joint Space 中控制 Robot。在许多应用中，直接指定末端执行器的目标 Pose 更直观，例如遥操作场景；此时可以使用 Task-Space Controller，而不必逐个给出关节目标位置。</p><p>本教程使用 <code>controllers.DifferentialIKController</code> 跟踪末端执行器的目标 Pose，介绍 Differential IK Controller 的基本用法。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>run_diff_ik.py</code>，位于 <code>scripts/tutorials/05_controllers</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">run_diff_ik.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""</span>
+<span class="sd">This script demonstrates how to use the differential inverse kinematics controller with the simulator.</span>
+
+<span class="sd">The differential IK controller can be configured in different modes. It uses the Jacobians computed by</span>
+<span class="sd">PhysX. This helps perform parallelized computation of the inverse kinematics.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Usage</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/05_controllers/run_diff_ik.py</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on using the differential IK controller."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--robot"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"franka_panda"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Name of the robot."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to spawn."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">DifferentialIKController</span><span class="p">,</span> <span class="n">DifferentialIKControllerCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.managers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SceneEntityCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FRAME_MARKER_CFG</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="n">subtract_frame_transforms</span>
+
+<span class="c1">##</span>
+<span class="c1"># Pre-defined configs</span>
+<span class="c1">##</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">FRANKA_PANDA_HIGH_PD_CFG</span><span class="p">,</span> <span class="n">UR10_CFG</span>  <span class="c1"># isort:skip</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TableTopSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Configuration for a cart-pole scene."""</span>
+
+    <span class="c1"># ground plane</span>
+    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">(),</span>
+        <span class="n">init_state</span><span class="o">=</span><span class="n">AssetBaseCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.05</span><span class="p">)),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># lights</span>
+    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="p">)</span>
+
+    <span class="c1"># mount</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Table"</span><span class="p">,</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
+            <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Props/Mounts/Stand/stand_instanceable.usd"</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># articulation</span>
+    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span> <span class="o">==</span> <span class="s2">"franka_panda"</span><span class="p">:</span>
+        <span class="n">robot</span> <span class="o">=</span> <span class="n">FRANKA_PANDA_HIGH_PD_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot"</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span> <span class="o">==</span> <span class="s2">"ur10"</span><span class="p">:</span>
+        <span class="n">robot</span> <span class="o">=</span> <span class="n">UR10_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot"</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Robot </span><span class="si">{</span><span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span><span class="si">}</span><span class="s2"> is not supported. Valid: franka_panda, ur10"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Runs the simulation loop."""</span>
+    <span class="c1"># Extract scene entities</span>
+    <span class="c1"># note: we only do this here for readability.</span>
+    <span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span>
+
+<span class="hll">    <span class="c1"># Create controller</span>
+</span><span class="hll">    <span class="n">diff_ik_cfg</span> <span class="o">=</span> <span class="n">DifferentialIKControllerCfg</span><span class="p">(</span><span class="n">command_type</span><span class="o">=</span><span class="s2">"pose"</span><span class="p">,</span> <span class="n">use_relative_mode</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ik_method</span><span class="o">=</span><span class="s2">"dls"</span><span class="p">)</span>
+</span><span class="hll">    <span class="n">diff_ik_controller</span> <span class="o">=</span> <span class="n">DifferentialIKController</span><span class="p">(</span><span class="n">diff_ik_cfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+</span>
+    <span class="c1"># Markers</span>
+    <span class="n">frame_marker_cfg</span> <span class="o">=</span> <span class="n">FRAME_MARKER_CFG</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">frame_marker_cfg</span><span class="o">.</span><span class="n">markers</span><span class="p">[</span><span class="s2">"frame"</span><span class="p">]</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+    <span class="n">ee_marker</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="n">frame_marker_cfg</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/Visuals/ee_current"</span><span class="p">))</span>
+    <span class="n">goal_marker</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="n">frame_marker_cfg</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/Visuals/ee_goal"</span><span class="p">))</span>
+
+    <span class="c1"># Define goals for the arm</span>
+    <span class="n">ee_goals</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">,</span> <span class="mf">0.707</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.707</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+        <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.707</span><span class="p">,</span> <span class="mf">0.707</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+        <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+    <span class="p">]</span>
+    <span class="n">ee_goals</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">ee_goals</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="c1"># Track the given command</span>
+    <span class="n">current_goal_idx</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># Create buffers to store actions</span>
+    <span class="n">ik_commands</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">diff_ik_controller</span><span class="o">.</span><span class="n">action_dim</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">robot</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">ik_commands</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">ee_goals</span><span class="p">[</span><span class="n">current_goal_idx</span><span class="p">]</span>
+
+<span class="hll">    <span class="c1"># Specify robot-specific parameters</span>
+</span><span class="hll">    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span> <span class="o">==</span> <span class="s2">"franka_panda"</span><span class="p">:</span>
+</span><span class="hll">        <span class="n">robot_entity_cfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"panda_joint.*"</span><span class="p">],</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"panda_hand"</span><span class="p">])</span>
+</span><span class="hll">    <span class="k">elif</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span> <span class="o">==</span> <span class="s2">"ur10"</span><span class="p">:</span>
+</span><span class="hll">        <span class="n">robot_entity_cfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">".*"</span><span class="p">],</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"ee_link"</span><span class="p">])</span>
+</span><span class="hll">    <span class="k">else</span><span class="p">:</span>
+</span><span class="hll">        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Robot </span><span class="si">{</span><span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span><span class="si">}</span><span class="s2"> is not supported. Valid: franka_panda, ur10"</span><span class="p">)</span>
+</span><span class="hll">    <span class="c1"># Resolving the scene entities</span>
+</span><span class="hll">    <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span>
+</span><span class="hll">    <span class="c1"># Obtain the frame index of the end-effector</span>
+</span><span class="hll">    <span class="c1"># For a fixed base robot, the frame index is one less than the body index. This is because</span>
+</span><span class="hll">    <span class="c1"># the root body is not included in the returned Jacobians.</span>
+</span><span class="hll">    <span class="k">if</span> <span class="n">robot</span><span class="o">.</span><span class="n">is_fixed_base</span><span class="p">:</span>
+</span><span class="hll">        <span class="n">ee_jacobi_idx</span> <span class="o">=</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+</span><span class="hll">    <span class="k">else</span><span class="p">:</span>
+</span><span class="hll">        <span class="n">ee_jacobi_idx</span> <span class="o">=</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span>
+    <span class="c1"># Define simulation stepping</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># Simulation loop</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># reset</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">150</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># reset time</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># reset joint state</span>
+            <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="c1"># reset actions</span>
+            <span class="n">ik_commands</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">ee_goals</span><span class="p">[</span><span class="n">current_goal_idx</span><span class="p">]</span>
+            <span class="n">joint_pos_des</span> <span class="o">=</span> <span class="n">joint_pos</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+<span class="hll">            <span class="c1"># reset controller</span>
+</span><span class="hll">            <span class="n">diff_ik_controller</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span><span class="hll">            <span class="n">diff_ik_controller</span><span class="o">.</span><span class="n">set_command</span><span class="p">(</span><span class="n">ik_commands</span><span class="p">)</span>
+</span>            <span class="c1"># change goal</span>
+            <span class="n">current_goal_idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">current_goal_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">ee_goals</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+<span class="hll">            <span class="c1"># obtain quantities from simulation</span>
+</span><span class="hll">            <span class="n">jacobian</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_jacobians</span><span class="p">()[:,</span> <span class="n">ee_jacobi_idx</span><span class="p">,</span> <span class="p">:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
+</span><span class="hll">            <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_pose_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+</span><span class="hll">            <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pose_w</span>
+</span><span class="hll">            <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
+</span><span class="hll">            <span class="c1"># compute frame in root frame</span>
+</span><span class="hll">            <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
+</span><span class="hll">                <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+</span><span class="hll">            <span class="p">)</span>
+</span><span class="hll">            <span class="c1"># compute the joint commands</span>
+</span><span class="hll">            <span class="n">joint_pos_des</span> <span class="o">=</span> <span class="n">diff_ik_controller</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span><span class="p">,</span> <span class="n">jacobian</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">)</span>
+</span>
+        <span class="c1"># apply actions</span>
+        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">joint_pos_des</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="c1"># perform step</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="c1"># update sim-time</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># update buffers</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+
+        <span class="c1"># obtain quantities from simulation</span>
+        <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+        <span class="c1"># update marker positions</span>
+        <span class="n">ee_marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+        <span class="n">goal_marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ik_commands</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span><span class="p">,</span> <span class="n">ik_commands</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># Load kit helper</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="c1"># Set main camera</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+    <span class="c1"># Design scene</span>
+    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">TableTopSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+    <span class="c1"># Play the simulator</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># Now we are ready!</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+    <span class="c1"># Run the simulator</span>
+    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p>使用 Task-Space Controller 时，必须确保所有输入量都使用正确的 Coordinate Frame。并行 Environment 共处于同一个 Simulation World Frame，但通常希望每个 Environment 都拥有自己的 Local Frame；其 Origin 可通过 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.scene.html#isaaclab.scene.InteractiveScene.env_origins" title="isaaclab.scene.InteractiveScene.env_origins"><code class="xref py py-attr docutils literal notranslate"><span class="pre">scene.InteractiveScene.env_origins</span></code></a> 获取。</p><p>Isaac Lab API 使用以下 Frame 记号：</p><ul class="simple">
+<li><p><span class="term">Simulation</span> 世界坐标系（表示为 <code class="docutils literal notranslate"><span class="pre">w</span></code>），这是整个<span class="term">Simulation</span>的框架。</p></li>
+<li><p>本地<span class="term">Environment</span>帧（表示为 <code class="docutils literal notranslate"><span class="pre">e</span></code>），即本地<span class="term">Environment</span>的帧。</p></li>
+<li><p><span class="term">Robot</span> 的基础框架（表示为 <code class="docutils literal notranslate"><span class="pre">b</span></code>），这是 <span class="term">Robot</span> 基础链接的框架。</p></li>
+</ul>
+<p>Asset 不感知 Environment Local Frame，因此返回的状态都位于 Simulation World Frame。使用这些状态前，需要减去对应的 Environment Origin，将其转换到 Environment Local Frame。</p><section>
+<h3 id="creating-an-ik-controller"><span class="heading-number">2.1</span> 创建 <span class="term">IK</span> <span class="term">Controller</span></h3>
+<p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.controllers.html#isaaclab.controllers.DifferentialIKController" title="isaaclab.controllers.DifferentialIKController"><code class="xref py py-class docutils literal notranslate"><span class="pre">DifferentialIKController</span></code></a> 根据目标末端执行器 Pose 计算 Robot 所需的关节 Position。该实现使用 PyTorch 批量计算，支持 Damped Least Squares、Pseudo-Inverse 等 IK Solver，可通过 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.controllers.html#isaaclab.controllers.DifferentialIKControllerCfg.ik_method" title="isaaclab.controllers.DifferentialIKControllerCfg.ik_method"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ik_method</span></code></a> 选择；Command 既可以是相对 Pose，也可以是绝对 Pose。</p><p>本教程使用 Damped Least Squares 计算关节 Position，并用 Absolute Pose Command 跟踪目标末端执行器 Pose。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Create controller</span>
+    <span class="n">diff_ik_cfg</span> <span class="o">=</span> <span class="n">DifferentialIKControllerCfg</span><span class="p">(</span><span class="n">command_type</span><span class="o">=</span><span class="s2">"pose"</span><span class="p">,</span> <span class="n">use_relative_mode</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ik_method</span><span class="o">=</span><span class="s2">"dls"</span><span class="p">)</span>
+    <span class="n">diff_ik_controller</span> <span class="o">=</span> <span class="n">DifferentialIKController</span><span class="p">(</span><span class="n">diff_ik_cfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="obtaining-the-robot-s-joint-and-body-indices"><span class="heading-number">2.2</span> 获取 Robot 的关节与刚体索引</h3><p>IK Controller 只负责计算，因此需要用户提供 Robot 的关节 Position、当前末端执行器 Pose 和 Jacobian Matrix。</p><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.joint_pos" title="isaaclab.assets.ArticulationData.joint_pos"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.joint_pos</span></code></a> 包含全部关节，但这里只需要机械臂关节，不需要 Gripper；<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationData.body_state_w" title="isaaclab.assets.ArticulationData.body_state_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">assets.ArticulationData.body_state_w</span></code></a> 包含全部刚体状态，而这里只需要末端执行器。因此必须先取得相应索引。</p><p>Articulation 提供 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.find_joints" title="isaaclab.assets.Articulation.find_joints"><code class="xref py py-meth docutils literal notranslate"><span class="pre">find_joints()</span></code></a> 和 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation.find_bodies" title="isaaclab.assets.Articulation.find_bodies"><code class="xref py py-meth docutils literal notranslate"><span class="pre">find_bodies()</span></code></a>，可根据关节或刚体名称返回对应索引。</p><p>也可以直接调用上述 Method，但更推荐使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.managers.html#isaaclab.managers.SceneEntityCfg" title="isaaclab.managers.SceneEntityCfg"><code class="xref py py-attr docutils literal notranslate"><span class="pre">SceneEntityCfg</span></code></a> 解析索引。该 Class 在内部调用这些 Method，并额外检查名称是否有效，因此更安全。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Specify robot-specific parameters</span>
+    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span> <span class="o">==</span> <span class="s2">"franka_panda"</span><span class="p">:</span>
+        <span class="n">robot_entity_cfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"panda_joint.*"</span><span class="p">],</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"panda_hand"</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span> <span class="o">==</span> <span class="s2">"ur10"</span><span class="p">:</span>
+        <span class="n">robot_entity_cfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">"robot"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">".*"</span><span class="p">],</span> <span class="n">body_names</span><span class="o">=</span><span class="p">[</span><span class="s2">"ee_link"</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Robot </span><span class="si">{</span><span class="n">args_cli</span><span class="o">.</span><span class="n">robot</span><span class="si">}</span><span class="s2"> is not supported. Valid: franka_panda, ur10"</span><span class="p">)</span>
+    <span class="c1"># Resolving the scene entities</span>
+    <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span>
+    <span class="c1"># Obtain the frame index of the end-effector</span>
+    <span class="c1"># For a fixed base robot, the frame index is one less than the body index. This is because</span>
+    <span class="c1"># the root body is not included in the returned Jacobians.</span>
+    <span class="k">if</span> <span class="n">robot</span><span class="o">.</span><span class="n">is_fixed_base</span><span class="p">:</span>
+        <span class="n">ee_jacobi_idx</span> <span class="o">=</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ee_jacobi_idx</span> <span class="o">=</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="computing-robot-command"><span class="heading-number">2.3</span> 计算 <span class="term">Robot</span> <span class="term">Command</span></h3>
+<p>IK Controller 将设置目标 Command 与计算关节 Position 分开，使 Controller 可以按不同于 Robot 控制频率的频率运行。</p><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.controllers.html#isaaclab.controllers.DifferentialIKController.set_command" title="isaaclab.controllers.DifferentialIKController.set_command"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_command()</span></code></a> 接收批量形式的目标末端执行器 Pose，该 Pose 位于 Robot Base Frame。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>            <span class="c1"># reset controller</span>
+            <span class="n">diff_ik_controller</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="n">diff_ik_controller</span><span class="o">.</span><span class="n">set_command</span><span class="p">(</span><span class="n">ik_commands</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.controllers.html#isaaclab.controllers.DifferentialIKController.compute" title="isaaclab.controllers.DifferentialIKController.compute"><code class="xref py py-meth docutils literal notranslate"><span class="pre">compute()</span></code></a> 根据当前末端执行器 Pose、Jacobian 和关节 Position 计算目标关节 Position。Jacobian 从 Robot 数据中读取，其值由 Physics Engine 计算。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>            <span class="c1"># obtain quantities from simulation</span>
+            <span class="n">jacobian</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_jacobians</span><span class="p">()[:,</span> <span class="n">ee_jacobi_idx</span><span class="p">,</span> <span class="p">:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
+            <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_pose_w</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pose_w</span>
+            <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
+            <span class="c1"># compute frame in root frame</span>
+            <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
+                <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="c1"># compute the joint commands</span>
+            <span class="n">joint_pos_des</span> <span class="o">=</span> <span class="n">diff_ik_controller</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span><span class="p">,</span> <span class="n">jacobian</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>最后，按照前面教程中的方式把计算得到的关节 Position 目标发送给 Robot。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>        <span class="c1"># apply actions</span>
+        <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">joint_pos_des</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">robot_entity_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">)</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>现在我们已经完成了代码，让我们运行 <span class="term">Script</span> 并查看结果：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/05_controllers/run_diff_ik.py<span class="w"> </span>--robot<span class="w"> </span>franka_panda<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">128</span>
+</pre></div>
+</div>
+<p><span class="term">Script</span> 将以 128 <span class="term">Robots</span> 开始 <span class="term">Simulation</span>。 <span class="term">Robots</span> 将使用 <span class="term">IK</span> <span class="term">Controller</span> 进行控制。
+应使用帧标记显示当前和所需的末端执行器 <span class="term">Poses</span>。当<span class="term">Robot</span>达到
+所需的 <span class="term">Pose</span>，<span class="term">Command</span> 应循环到 <span class="term">Script</span> 中指定的下一个 <span class="term">Pose</span>。</p>
+<figure class="align-center" style="width: 100%">
+<img alt="result of run_diff_ik.py" src="../../assets/tutorial_task_space_controller.jpg" class="tutorial-image">
+</figure>
+<p>要停止 <span class="term">Simulation</span>，您可以关闭窗口，或按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 在 <span class="term">Terminal</span> 中。</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="../04_sensors/add_sensors_on_robot.html">← 上一篇：在 Robot 上添加 Sensors</a>
+        <a href="run_osc.html">下一篇：使用 Operational Space Controller →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/05_controllers/run_diff_ik.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#creating-an-ik-controller" class="toc-level-2">2.1 创建 IK Controller</a><a href="#obtaining-the-robot-s-joint-and-body-indices" class="toc-level-2">2.2 获取 Robot 的关节与刚体索引</a><a href="#computing-robot-command" class="toc-level-2">2.3 计算 Robot Command</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

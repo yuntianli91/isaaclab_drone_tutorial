@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>修改现有 Direct RL Environment — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="configuring_rl_training.html">配置 RL Agent</a>
+      <a class="active" data-search-item href="modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 修改现有 Direct RL Environment</h1>
+      <article class="bd-article">
+                  
+  <section id="modifying-an-existing-direct-rl-environment">
+<span id="tutorial-modify-direct-rl-env"></span>
+<p>前面的教程介绍了如何创建 Direct Workflow RL Environment、注册 Task，以及训练 RL Agent。本教程将在这些内容的基础上，修改一个现有 Task。</p><p>当目标与已有示例差异较大时，可能需要从头实现 Task；如果差异较小，则可以复制现有实现并只修改必要部分，从而减少重复工作。</p><p>本教程将修改 Direct Workflow Humanoid Task，把原有 Humanoid 模型替换为 Unitree H1 Robot，同时保持原始 Task 逻辑不变。</p><section>
+<h2 id="the-base-code"><span class="heading-number">1</span> 基本代码</h2>
+<p>本教程以 <code class="docutils literal notranslate"><span class="pre">isaaclab_tasks.direct.humanoid</span></code> Module 中的 Direct Workflow Humanoid Environment 为基础。</p><details class="code-details">
+<summary>代码 <span class="term">humanoid_env.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">DirectRLEnvCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.direct.locomotion.locomotion_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">LocomotionEnv</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">HUMANOID_CFG</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HumanoidEnvCfg</span><span class="p">(</span><span class="n">DirectRLEnvCfg</span><span class="p">):</span>
+    <span class="c1"># env</span>
+    <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">15.0</span>
+    <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">action_scale</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">action_space</span> <span class="o">=</span> <span class="mi">21</span>
+    <span class="n">observation_space</span> <span class="o">=</span> <span class="mi">75</span>
+    <span class="n">state_space</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># simulation</span>
+    <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">,</span> <span class="n">render_interval</span><span class="o">=</span><span class="n">decimation</span><span class="p">)</span>
+    <span class="n">terrain</span> <span class="o">=</span> <span class="n">TerrainImporterCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/ground"</span><span class="p">,</span>
+        <span class="n">terrain_type</span><span class="o">=</span><span class="s2">"plane"</span><span class="p">,</span>
+        <span class="n">collision_group</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">physics_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyMaterialCfg</span><span class="p">(</span>
+            <span class="n">friction_combine_mode</span><span class="o">=</span><span class="s2">"average"</span><span class="p">,</span>
+            <span class="n">restitution_combine_mode</span><span class="o">=</span><span class="s2">"average"</span><span class="p">,</span>
+            <span class="n">static_friction</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+            <span class="n">dynamic_friction</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+            <span class="n">restitution</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">debug_vis</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># scene</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">InteractiveSceneCfg</span><span class="p">(</span>
+        <span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">clone_in_fabric</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+
+    <span class="c1"># robot</span>
+    <span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">HUMANOID_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/envs/env_.*/Robot"</span><span class="p">)</span>
+    <span class="n">joint_gears</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># lower_waist</span>
+        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># lower_waist</span>
+        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># right_upper_arm</span>
+        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># right_upper_arm</span>
+        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># left_upper_arm</span>
+        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># left_upper_arm</span>
+        <span class="mf">67.5000</span><span class="p">,</span>  <span class="c1"># pelvis</span>
+        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_lower_arm</span>
+        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_lower_arm</span>
+        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: x</span>
+        <span class="mf">135.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: y</span>
+        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># right_thigh: z</span>
+        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: x</span>
+        <span class="mf">135.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: y</span>
+        <span class="mf">45.0000</span><span class="p">,</span>  <span class="c1"># left_thigh: z</span>
+        <span class="mf">90.0000</span><span class="p">,</span>  <span class="c1"># right_knee</span>
+        <span class="mf">90.0000</span><span class="p">,</span>  <span class="c1"># left_knee</span>
+        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># right_foot</span>
+        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># right_foot</span>
+        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># left_foot</span>
+        <span class="mf">22.5</span><span class="p">,</span>  <span class="c1"># left_foot</span>
+    <span class="p">]</span>
+
+    <span class="n">heading_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
+    <span class="n">up_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+
+    <span class="n">energy_cost_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.05</span>
+    <span class="n">actions_cost_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+    <span class="n">alive_reward_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+    <span class="n">dof_vel_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+
+    <span class="n">death_cost</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span>
+    <span class="n">termination_height</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span>
+
+    <span class="n">angular_velocity_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.25</span>
+    <span class="n">contact_force_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">HumanoidEnv</span><span class="p">(</span><span class="n">LocomotionEnv</span><span class="p">):</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">HumanoidEnvCfg</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">HumanoidEnvCfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-changes-explained"><span class="heading-number">2</span> 修改说明</h2><section>
+<h3 id="duplicating-the-file-and-registering-a-new-task"><span class="heading-number">2.1</span> 复制文件并注册新的 <span class="term">Task</span></h3>
+<p>为避免修改现有 Task，先复制其 Python 实现。在 Isaac Lab Project 的 <code class="docutils literal notranslate"><span class="pre">source/isaaclab_tasks/isaaclab_tasks/direct/humanoid</span></code> 目录中，将 <code class="docutils literal notranslate"><span class="pre">humanoid_env.py</span></code> 复制并重命名为 <code class="docutils literal notranslate"><span class="pre">h1_env.py</span></code>。</p><p>用代码编辑器打开 <code class="docutils literal notranslate"><span class="pre">h1_env.py</span></code>，将 <code class="docutils literal notranslate"><span class="pre">HumanoidEnv</span></code> 和 <code class="docutils literal notranslate"><span class="pre">HumanoidEnvCfg</span></code> 分别重命名为 <code class="docutils literal notranslate"><span class="pre">H1Env</span></code> 和 <code class="docutils literal notranslate"><span class="pre">H1EnvCfg</span></code>，避免注册新 Environment 时发生导入名称冲突。</p><p>然后修改同一目录中的 <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code>，添加注册项，将新 Task 注册为 <code class="docutils literal notranslate"><span class="pre">Isaac-H1-Direct-v0</span></code>。Environment 注册机制详见“注册 Environment”教程。</p><div class="admonition hint">
+<p class="admonition-title">暗示</p>
+<p>如果 <span class="term">Task</span> 中的变化很小，则很可能可以使用相同的 <span class="term">RL Library</span> <span class="term">Agent</span> <span class="term">Configurations</span> 来成功训练它。
+否则，建议创建新的 <span class="term">Configuration</span> 文件（在注册期间调整其名称） <code class="docutils literal notranslate"><span class="pre">kwargs</span></code> <span class="term">Parameter</span>)
+以避免更改原始 <span class="term">Configurations</span>。</p>
+</div>
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">.h1_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">H1Env</span><span class="p">,</span> <span class="n">H1EnvCfg</span>
+</pre></div>
+</div>
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+    <span class="nb">id</span><span class="o">=</span><span class="s2">"Isaac-H1-Direct-v0"</span><span class="p">,</span>
+    <span class="n">entry_point</span><span class="o">=</span><span class="s2">"isaaclab_tasks.direct.humanoid:H1Env"</span><span class="p">,</span>
+    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"env_cfg_entry_point"</span><span class="p">:</span> <span class="n">H1EnvCfg</span><span class="p">,</span>
+        <span class="s2">"rl_games_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_ppo_cfg.yaml"</span><span class="p">,</span>
+        <span class="s2">"rsl_rl_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg"</span><span class="p">,</span>
+        <span class="s2">"skrl_cfg_entry_point"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:skrl_ppo_cfg.yaml"</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="changing-the-robot"><span class="heading-number">2.2</span> 更改 <span class="term">Robot</span></h3>
+<p>新文件中的 <code class="docutils literal notranslate"><span class="pre">H1EnvCfg</span></code> 封装 Environment Configuration，包括需要实例化的 Asset；其中 <code class="docutils literal notranslate"><span class="pre">robot</span></code> 属性保存目标 Articulation Configuration。</p><p>Unitree H1 已包含在 Isaac Lab Assets Extension（<code class="docutils literal notranslate"><span class="pre">isaaclab_assets</span></code>）中，因此可以直接导入并替换 <code class="docutils literal notranslate"><span class="pre">H1EnvCfg.robot</span></code>。还需要修改 <code class="docutils literal notranslate"><span class="pre">joint_gears</span></code>，因为其中保存的是 Robot 专属配置。</p><div class="admonition hint">
+<p class="admonition-title">暗示</p>
+<p>如果目标 <span class="term">Robot</span> 未包含在 <span class="term">Isaac Lab</span> <span class="term">Assets</span> <span class="term">Extension</span> 中，则可以从 <span class="term">USD</span> 文件加载和配置它，
+通过使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.ArticulationCfg" title="isaaclab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> <span class="term">Class</span>。</p>
+<ul class="simple">
+<li><p>请参阅 <a class="reference external" href="https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/franka_cabinet_env.py">艾萨克-弗兰卡-内阁-直接-v0</a> <span class="term">Source Code</span> 有关从 <span class="term">USD</span> 文件加载和配置 <span class="term">Robot</span> 的示例。</p></li>
+<li><p>请参阅 <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/how-to/import_new_asset.html">导入新的 <span class="term">Asset</span></a> 有关如何从 <span class="term">URDF</span> 或 <span class="term">MJCF</span> 文件以及其他格式导入 <span class="term">Asset</span> 的详细信息的教程。</p></li>
+</ul>
+</div>
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">H1_CFG</span>
+</pre></div>
+</div>
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="n">robot</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">H1_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/envs/env_.*/Robot"</span><span class="p">)</span>
+<span class="n">joint_gears</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_hip_yaw</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_hip_yaw</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># torso</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_hip_roll</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_hip_roll</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_shoulder_pitch</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_shoulder_pitch</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_hip_pitch</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_hip_pitch</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_shoulder_roll</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_shoulder_roll</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_knee</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_knee</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_shoulder_yaw</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_shoulder_yaw</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_ankle</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_ankle</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># left_elbow</span>
+    <span class="mf">50.0</span><span class="p">,</span>  <span class="c1"># right_elbow</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+<p>更换 Robot 后，受控关节数量和 Articulation 中的 Rigid Body 数量可能发生变化。因此还需按新 Robot 调整其他 Environment Configuration，例如 Observation Space 和 Action Space 的维度。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="n">action_space</span> <span class="o">=</span> <span class="mi">19</span>
+<span class="n">observation_space</span> <span class="o">=</span> <span class="mi">69</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>完成小修改后，与之前的教程类似，我们可以使用可用的 <span class="term">RL</span> <span class="term">Workflows</span> 之一对 <span class="term">Task</span> 进行训练，例如 <span class="term">Task</span>。</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-H1-Direct-v0<span class="w"> </span>--headless
+</pre></div>
+</div>
+<p>训练完成后，我们可以使用以下 <span class="term">Command</span> 可视化结果。
+要停止 <span class="term">Simulation</span>，您可以关闭窗口，或按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 在 <span class="term">Terminal</span> 中
+您开始 <span class="term">Simulation</span> 的位置。</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rl_games/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-H1-Direct-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span>
+</pre></div>
+</div>
+<figure class="align-center" style="width: 100%">
+<img alt="result of training Isaac-H1-Direct-v0 task" src="../../assets/tutorial_modify_direct_rl_env.jpg" class="tutorial-image">
+</figure>
+<p>在本教程中，我们学习了如何在不影响原始代码的情况下对现有 <span class="term">Environment</span> 进行细微修改。</p>
+<p>然而，重要的是要注意，虽然要做的改变可能很小，但它们可能并不总是在第一次尝试时起作用，
+因为正在修改的 <span class="term">Environment</span> 中可能对原始 <span class="term">Assets</span> 存在更深层次的依赖。
+在这些情况下，建议详细分析可用示例的代码，以便做出适当的调整。</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="configuring_rl_training.html">← 上一篇：配置 RL Agent</a>
+        <a href="policy_inference_in_usd.html">下一篇：USD Environment 中的 Policy Inference →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/03_envs/modify_direct_rl_env.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-base-code">1 基本代码</a><a href="#the-changes-explained">2 修改说明</a><a href="#duplicating-the-file-and-registering-a-new-task" class="toc-level-2">2.1 复制文件并注册新的 Task</a><a href="#changing-the-robot" class="toc-level-2">2.2 更改 Robot</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

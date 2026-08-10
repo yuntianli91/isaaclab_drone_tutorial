@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>使用 Operational Space Controller — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="run_diff_ik.html">使用 Task-Space Controller</a>
+      <a class="active" data-search-item href="run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 使用 Operational Space Controller</h1>
+      <article class="bd-article">
+                  
+  <section id="using-an-operational-space-controller">
+
+<p>Differential IK Controller 主要用于控制末端执行器 Pose，但某些任务还需要指定误差动态、直接发送关节力矩，或在控制运动的同时沿特定方向施加接触力。此类任务可以使用 Operational Space Controller（OSC）。</p><p>有关 Operational Space Control 的理论背景，请参阅下列资料：</p><ol class="arabic simple">
+<li><p>哈提卜啊。 <span class="term">Robot</span> 机械臂运动和力控制的统一方法：
+作战空间的制定。 IEEE 机器人与自动化杂志，3(1):43–53，1987。URL <a class="reference external" href="http://dx.doi.org/10.1109/JRA.1987.1087068">http://dx.doi.org/10.1109/JRA.1987.1087068</a>.</p></li>
+<li><p><span class="term">Robot</span> 动力学讲义，作者：Marco Hutter（苏黎世联邦理工学院）。网址 <a class="reference external" href="https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf">https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017<span class="term">Script</span>.pdf</a></p></li>
+</ol>
+<p>本教程使用 <code>controllers.OperationalSpaceController</code> 控制 Robot：在垂直于倾斜墙面的方向施加恒定力，同时在其他方向跟踪目标末端执行器 Pose。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>run_osc.py</code>，位于 <code>scripts/tutorials/05_controllers</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">run_osc.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""</span>
+<span class="sd">This script demonstrates how to use the operational space controller (OSC) with the simulator.</span>
+
+<span class="sd">The OSC controller can be configured in different modes. It uses the dynamical quantities such as Jacobians and</span>
+<span class="sd">mass matricescomputed by PhysX.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Usage</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on using the operational space controller."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to spawn."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">AssetBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.controllers</span><span class="w"> </span><span class="kn">import</span> <span class="n">OperationalSpaceController</span><span class="p">,</span> <span class="n">OperationalSpaceControllerCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FRAME_MARKER_CFG</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContactSensorCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">combine_frame_transforms</span><span class="p">,</span>
+    <span class="n">matrix_from_quat</span><span class="p">,</span>
+    <span class="n">quat_apply_inverse</span><span class="p">,</span>
+    <span class="n">quat_inv</span><span class="p">,</span>
+    <span class="n">subtract_frame_transforms</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1">##</span>
+<span class="c1"># Pre-defined configs</span>
+<span class="c1">##</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">FRANKA_PANDA_HIGH_PD_CFG</span>  <span class="c1"># isort:skip</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Configuration for a simple scene with a tilted wall."""</span>
+
+    <span class="c1"># ground plane</span>
+    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">(),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># lights</span>
+    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Tilted wall</span>
+    <span class="n">tilted_wall</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/TiltedWall"</span><span class="p">,</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+            <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">),</span>
+            <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+            <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">opacity</span><span class="o">=</span><span class="mf">0.1</span><span class="p">),</span>
+            <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span><span class="n">kinematic_enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+            <span class="n">activate_contact_sensors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">init_state</span><span class="o">=</span><span class="n">AssetBaseCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
+            <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.6</span> <span class="o">+</span> <span class="mf">0.085</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">),</span> <span class="n">rot</span><span class="o">=</span><span class="p">(</span><span class="mf">0.9238795325</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3826834324</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="n">contact_forces</span> <span class="o">=</span> <span class="n">ContactSensorCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/envs/env_.*/TiltedWall"</span><span class="p">,</span>
+        <span class="n">update_period</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">history_length</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="n">debug_vis</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">robot</span> <span class="o">=</span> <span class="n">FRANKA_PANDA_HIGH_PD_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Robot"</span><span class="p">)</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">actuators</span><span class="p">[</span><span class="s2">"panda_shoulder"</span><span class="p">]</span><span class="o">.</span><span class="n">stiffness</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">actuators</span><span class="p">[</span><span class="s2">"panda_shoulder"</span><span class="p">]</span><span class="o">.</span><span class="n">damping</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">actuators</span><span class="p">[</span><span class="s2">"panda_forearm"</span><span class="p">]</span><span class="o">.</span><span class="n">stiffness</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">actuators</span><span class="p">[</span><span class="s2">"panda_forearm"</span><span class="p">]</span><span class="o">.</span><span class="n">damping</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">spawn</span><span class="o">.</span><span class="n">rigid_props</span><span class="o">.</span><span class="n">disable_gravity</span> <span class="o">=</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Runs the simulation loop.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sim: (SimulationContext) Simulation context.</span>
+<span class="sd">        scene: (InteractiveScene) Interactive scene.</span>
+<span class="sd">    """</span>
+
+    <span class="c1"># Extract scene entities for readability.</span>
+    <span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"robot"</span><span class="p">]</span>
+    <span class="n">contact_forces</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"contact_forces"</span><span class="p">]</span>
+
+    <span class="c1"># Obtain indices for the end-effector and arm joints</span>
+    <span class="n">ee_frame_name</span> <span class="o">=</span> <span class="s2">"panda_leftfinger"</span>
+    <span class="n">arm_joint_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"panda_joint.*"</span><span class="p">]</span>
+    <span class="n">ee_frame_idx</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">find_bodies</span><span class="p">(</span><span class="n">ee_frame_name</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">arm_joint_ids</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">find_joints</span><span class="p">(</span><span class="n">arm_joint_names</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Create the OSC</span>
+    <span class="n">osc_cfg</span> <span class="o">=</span> <span class="n">OperationalSpaceControllerCfg</span><span class="p">(</span>
+        <span class="n">target_types</span><span class="o">=</span><span class="p">[</span><span class="s2">"pose_abs"</span><span class="p">,</span> <span class="s2">"wrench_abs"</span><span class="p">],</span>
+        <span class="n">impedance_mode</span><span class="o">=</span><span class="s2">"variable_kp"</span><span class="p">,</span>
+        <span class="n">inertial_dynamics_decoupling</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">partial_inertial_dynamics_decoupling</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">gravity_compensation</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">motion_damping_ratio_task</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">contact_wrench_stiffness_task</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+        <span class="n">motion_control_axes_task</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+        <span class="n">contact_wrench_control_axes_task</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+        <span class="n">nullspace_control</span><span class="o">=</span><span class="s2">"position"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">osc</span> <span class="o">=</span> <span class="n">OperationalSpaceController</span><span class="p">(</span><span class="n">osc_cfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="c1"># Markers</span>
+    <span class="n">frame_marker_cfg</span> <span class="o">=</span> <span class="n">FRAME_MARKER_CFG</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">frame_marker_cfg</span><span class="o">.</span><span class="n">markers</span><span class="p">[</span><span class="s2">"frame"</span><span class="p">]</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+    <span class="n">ee_marker</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="n">frame_marker_cfg</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/Visuals/ee_current"</span><span class="p">))</span>
+    <span class="n">goal_marker</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="n">frame_marker_cfg</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/Visuals/ee_goal"</span><span class="p">))</span>
+
+    <span class="c1"># Define targets for the arm</span>
+    <span class="n">ee_goal_pose_set_tilted_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="p">[</span><span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.92387953</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.38268343</span><span class="p">],</span>
+            <span class="p">[</span><span class="mf">0.6</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.92387953</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.38268343</span><span class="p">],</span>
+            <span class="p">[</span><span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.92387953</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.38268343</span><span class="p">],</span>
+        <span class="p">],</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">ee_goal_wrench_set_tilted_task</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+            <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+            <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+        <span class="p">],</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">kp_set_task</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="p">[</span><span class="mf">360.0</span><span class="p">,</span> <span class="mf">360.0</span><span class="p">,</span> <span class="mf">360.0</span><span class="p">,</span> <span class="mf">360.0</span><span class="p">,</span> <span class="mf">360.0</span><span class="p">,</span> <span class="mf">360.0</span><span class="p">],</span>
+            <span class="p">[</span><span class="mf">420.0</span><span class="p">,</span> <span class="mf">420.0</span><span class="p">,</span> <span class="mf">420.0</span><span class="p">,</span> <span class="mf">420.0</span><span class="p">,</span> <span class="mf">420.0</span><span class="p">,</span> <span class="mf">420.0</span><span class="p">],</span>
+            <span class="p">[</span><span class="mf">320.0</span><span class="p">,</span> <span class="mf">320.0</span><span class="p">,</span> <span class="mf">320.0</span><span class="p">,</span> <span class="mf">320.0</span><span class="p">,</span> <span class="mf">320.0</span><span class="p">,</span> <span class="mf">320.0</span><span class="p">],</span>
+        <span class="p">],</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">ee_target_set</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_goal_pose_set_tilted_b</span><span class="p">,</span> <span class="n">ee_goal_wrench_set_tilted_task</span><span class="p">,</span> <span class="n">kp_set_task</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Define simulation stepping</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+
+    <span class="c1"># Update existing buffers</span>
+    <span class="c1"># Note: We need to update buffers before the first step for the controller.</span>
+    <span class="n">robot</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="n">sim_dt</span><span class="p">)</span>
+
+    <span class="c1"># Get the center of the robot soft joint limits</span>
+    <span class="n">joint_centers</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">soft_joint_pos_limits</span><span class="p">[:,</span> <span class="n">arm_joint_ids</span><span class="p">,</span> <span class="p">:],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># get the updated states</span>
+    <span class="p">(</span>
+        <span class="n">jacobian_b</span><span class="p">,</span>
+        <span class="n">mass_matrix</span><span class="p">,</span>
+        <span class="n">gravity</span><span class="p">,</span>
+        <span class="n">ee_pose_b</span><span class="p">,</span>
+        <span class="n">ee_vel_b</span><span class="p">,</span>
+        <span class="n">root_pose_w</span><span class="p">,</span>
+        <span class="n">ee_pose_w</span><span class="p">,</span>
+        <span class="n">ee_force_b</span><span class="p">,</span>
+        <span class="n">joint_pos</span><span class="p">,</span>
+        <span class="n">joint_vel</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="n">update_states</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">,</span> <span class="n">robot</span><span class="p">,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="n">arm_joint_ids</span><span class="p">,</span> <span class="n">contact_forces</span><span class="p">)</span>
+
+    <span class="c1"># Track the given target command</span>
+    <span class="n">current_goal_idx</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Current goal index for the arm</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">osc</span><span class="o">.</span><span class="n">action_dim</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span>
+    <span class="p">)</span>  <span class="c1"># Generic target command, which can be pose, position, force, etc.</span>
+    <span class="n">ee_target_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># Target pose in the body frame</span>
+    <span class="n">ee_target_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># Target pose in the world frame (for marker)</span>
+
+    <span class="c1"># Set joint efforts to zero</span>
+    <span class="n">zero_joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">robot</span><span class="o">.</span><span class="n">num_joints</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">arm_joint_ids</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># Simulation loop</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># reset every 500 steps</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># reset joint state to default</span>
+            <span class="n">default_joint_pos</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">default_joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">default_joint_pos</span><span class="p">,</span> <span class="n">default_joint_vel</span><span class="p">)</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="n">zero_joint_efforts</span><span class="p">)</span>  <span class="c1"># Set zero torques in the initial step</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="c1"># reset contact sensor</span>
+            <span class="n">contact_forces</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="c1"># reset target pose</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">ee_pose_b</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">update_states</span><span class="p">(</span>
+                <span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">,</span> <span class="n">robot</span><span class="p">,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="n">arm_joint_ids</span><span class="p">,</span> <span class="n">contact_forces</span>
+            <span class="p">)</span>  <span class="c1"># at reset, the jacobians are not updated to the latest state</span>
+            <span class="n">command</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="p">,</span> <span class="n">ee_target_pose_w</span><span class="p">,</span> <span class="n">current_goal_idx</span> <span class="o">=</span> <span class="n">update_target</span><span class="p">(</span>
+                <span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">,</span> <span class="n">osc</span><span class="p">,</span> <span class="n">root_pose_w</span><span class="p">,</span> <span class="n">ee_target_set</span><span class="p">,</span> <span class="n">current_goal_idx</span>
+            <span class="p">)</span>
+            <span class="c1"># set the osc command</span>
+            <span class="n">osc</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="n">command</span><span class="p">,</span> <span class="n">task_frame_pose_b</span> <span class="o">=</span> <span class="n">convert_to_task_frame</span><span class="p">(</span><span class="n">osc</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="o">=</span><span class="n">ee_target_pose_b</span><span class="p">)</span>
+            <span class="n">osc</span><span class="o">.</span><span class="n">set_command</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">,</span> <span class="n">current_ee_pose_b</span><span class="o">=</span><span class="n">ee_pose_b</span><span class="p">,</span> <span class="n">current_task_frame_pose_b</span><span class="o">=</span><span class="n">task_frame_pose_b</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># get the updated states</span>
+            <span class="p">(</span>
+                <span class="n">jacobian_b</span><span class="p">,</span>
+                <span class="n">mass_matrix</span><span class="p">,</span>
+                <span class="n">gravity</span><span class="p">,</span>
+                <span class="n">ee_pose_b</span><span class="p">,</span>
+                <span class="n">ee_vel_b</span><span class="p">,</span>
+                <span class="n">root_pose_w</span><span class="p">,</span>
+                <span class="n">ee_pose_w</span><span class="p">,</span>
+                <span class="n">ee_force_b</span><span class="p">,</span>
+                <span class="n">joint_pos</span><span class="p">,</span>
+                <span class="n">joint_vel</span><span class="p">,</span>
+            <span class="p">)</span> <span class="o">=</span> <span class="n">update_states</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">,</span> <span class="n">robot</span><span class="p">,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="n">arm_joint_ids</span><span class="p">,</span> <span class="n">contact_forces</span><span class="p">)</span>
+            <span class="c1"># compute the joint commands</span>
+            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">osc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+                <span class="n">jacobian_b</span><span class="o">=</span><span class="n">jacobian_b</span><span class="p">,</span>
+                <span class="n">current_ee_pose_b</span><span class="o">=</span><span class="n">ee_pose_b</span><span class="p">,</span>
+                <span class="n">current_ee_vel_b</span><span class="o">=</span><span class="n">ee_vel_b</span><span class="p">,</span>
+                <span class="n">current_ee_force_b</span><span class="o">=</span><span class="n">ee_force_b</span><span class="p">,</span>
+                <span class="n">mass_matrix</span><span class="o">=</span><span class="n">mass_matrix</span><span class="p">,</span>
+                <span class="n">gravity</span><span class="o">=</span><span class="n">gravity</span><span class="p">,</span>
+                <span class="n">current_joint_pos</span><span class="o">=</span><span class="n">joint_pos</span><span class="p">,</span>
+                <span class="n">current_joint_vel</span><span class="o">=</span><span class="n">joint_vel</span><span class="p">,</span>
+                <span class="n">nullspace_joint_pos_target</span><span class="o">=</span><span class="n">joint_centers</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="c1"># apply actions</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">arm_joint_ids</span><span class="p">)</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+
+        <span class="c1"># update marker positions</span>
+        <span class="n">ee_marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+        <span class="n">goal_marker</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ee_target_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_target_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+
+        <span class="c1"># perform step</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">render</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># update robot buffers</span>
+        <span class="n">robot</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+        <span class="c1"># update buffers</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+        <span class="c1"># update sim-time</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+
+<span class="c1"># Update robot states</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">update_states</span><span class="p">(</span>
+    <span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">,</span>
+    <span class="n">robot</span><span class="p">:</span> <span class="n">Articulation</span><span class="p">,</span>
+    <span class="n">ee_frame_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">arm_joint_ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="n">contact_forces</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Update the robot states.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sim: (SimulationContext) Simulation context.</span>
+<span class="sd">        scene: (InteractiveScene) Interactive scene.</span>
+<span class="sd">        robot: (Articulation) Robot articulation.</span>
+<span class="sd">        ee_frame_idx: (int) End-effector frame index.</span>
+<span class="sd">        arm_joint_ids: (list[int]) Arm joint indices.</span>
+<span class="sd">        contact_forces: (ContactSensor) Contact sensor.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        jacobian_b (torch.tensor): Jacobian in the body frame.</span>
+<span class="sd">        mass_matrix (torch.tensor): Mass matrix.</span>
+<span class="sd">        gravity (torch.tensor): Gravity vector.</span>
+<span class="sd">        ee_pose_b (torch.tensor): End-effector pose in the body frame.</span>
+<span class="sd">        ee_vel_b (torch.tensor): End-effector velocity in the body frame.</span>
+<span class="sd">        root_pose_w (torch.tensor): Root pose in the world frame.</span>
+<span class="sd">        ee_pose_w (torch.tensor): End-effector pose in the world frame.</span>
+<span class="sd">        ee_force_b (torch.tensor): End-effector force in the body frame.</span>
+<span class="sd">        joint_pos (torch.tensor): The joint positions.</span>
+<span class="sd">        joint_vel (torch.tensor): The joint velocities.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: Undefined target_type.</span>
+<span class="sd">    """</span>
+    <span class="c1"># obtain dynamics related quantities from simulation</span>
+    <span class="n">ee_jacobi_idx</span> <span class="o">=</span> <span class="n">ee_frame_idx</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">jacobian_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_jacobians</span><span class="p">()[:,</span> <span class="n">ee_jacobi_idx</span><span class="p">,</span> <span class="p">:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+    <span class="n">mass_matrix</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_generalized_mass_matrices</span><span class="p">()[:,</span> <span class="n">arm_joint_ids</span><span class="p">,</span> <span class="p">:][:,</span> <span class="p">:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+    <span class="n">gravity</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_gravity_compensation_forces</span><span class="p">()[:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+    <span class="c1"># Convert the Jacobian from world to root frame</span>
+    <span class="n">jacobian_b</span> <span class="o">=</span> <span class="n">jacobian_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+    <span class="n">root_rot_matrix</span> <span class="o">=</span> <span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">))</span>
+    <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">root_rot_matrix</span><span class="p">,</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">root_rot_matrix</span><span class="p">,</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:,</span> <span class="p">:])</span>
+
+    <span class="c1"># Compute current pose of the end-effector</span>
+    <span class="n">root_pos_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span>
+    <span class="n">root_quat_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span>
+    <span class="n">ee_pos_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_pos_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">]</span>
+    <span class="n">ee_quat_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_quat_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">]</span>
+    <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span><span class="n">root_pos_w</span><span class="p">,</span> <span class="n">root_quat_w</span><span class="p">,</span> <span class="n">ee_pos_w</span><span class="p">,</span> <span class="n">ee_quat_w</span><span class="p">)</span>
+    <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">root_pos_w</span><span class="p">,</span> <span class="n">root_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_w</span><span class="p">,</span> <span class="n">ee_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">ee_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Compute the current velocity of the end-effector</span>
+    <span class="n">ee_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_vel_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Extract end-effector velocity in the world frame</span>
+    <span class="n">root_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_vel_w</span>  <span class="c1"># Extract root velocity in the world frame</span>
+    <span class="n">relative_vel_w</span> <span class="o">=</span> <span class="n">ee_vel_w</span> <span class="o">-</span> <span class="n">root_vel_w</span>  <span class="c1"># Compute the relative velocity in the world frame</span>
+    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_apply_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
+    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_apply_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
+    <span class="n">ee_vel_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_lin_vel_b</span><span class="p">,</span> <span class="n">ee_ang_vel_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Calculate the contact force</span>
+    <span class="n">ee_force_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">contact_forces</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>  <span class="c1"># update contact sensor</span>
+    <span class="c1"># Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and</span>
+    <span class="c1"># taking the max of three surfaces as only one should be the contact of interest</span>
+    <span class="n">ee_force_w</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">contact_forces</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">net_forces_w_history</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># This is a simplification, only for the sake of testing.</span>
+    <span class="n">ee_force_b</span> <span class="o">=</span> <span class="n">ee_force_w</span>
+
+    <span class="c1"># Get joint positions and velocities</span>
+    <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+    <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">jacobian_b</span><span class="p">,</span>
+        <span class="n">mass_matrix</span><span class="p">,</span>
+        <span class="n">gravity</span><span class="p">,</span>
+        <span class="n">ee_pose_b</span><span class="p">,</span>
+        <span class="n">ee_vel_b</span><span class="p">,</span>
+        <span class="n">root_pose_w</span><span class="p">,</span>
+        <span class="n">ee_pose_w</span><span class="p">,</span>
+        <span class="n">ee_force_b</span><span class="p">,</span>
+        <span class="n">joint_pos</span><span class="p">,</span>
+        <span class="n">joint_vel</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="c1"># Update the target commands</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">update_target</span><span class="p">(</span>
+    <span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">,</span>
+    <span class="n">osc</span><span class="p">:</span> <span class="n">OperationalSpaceController</span><span class="p">,</span>
+    <span class="n">root_pose_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span>
+    <span class="n">ee_target_set</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span>
+    <span class="n">current_goal_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Update the targets for the operational space controller.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sim: (SimulationContext) Simulation context.</span>
+<span class="sd">        scene: (InteractiveScene) Interactive scene.</span>
+<span class="sd">        osc: (OperationalSpaceController) Operational space controller.</span>
+<span class="sd">        root_pose_w: (torch.tensor) Root pose in the world frame.</span>
+<span class="sd">        ee_target_set: (torch.tensor) End-effector target set.</span>
+<span class="sd">        current_goal_idx: (int) Current goal index.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        command (torch.tensor): Updated target command.</span>
+<span class="sd">        ee_target_pose_b (torch.tensor): Updated target pose in the body frame.</span>
+<span class="sd">        ee_target_pose_w (torch.tensor): Updated target pose in the world frame.</span>
+<span class="sd">        next_goal_idx (int): Next goal index.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: Undefined target_type.</span>
+<span class="sd">    """</span>
+
+    <span class="c1"># update the ee desired command</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">osc</span><span class="o">.</span><span class="n">action_dim</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">command</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">ee_target_set</span><span class="p">[</span><span class="n">current_goal_idx</span><span class="p">]</span>
+
+    <span class="c1"># update the ee desired pose</span>
+    <span class="n">ee_target_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">target_type</span> <span class="ow">in</span> <span class="n">osc</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_types</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">"pose_abs"</span><span class="p">:</span>
+            <span class="n">ee_target_pose_b</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">"wrench_abs"</span><span class="p">:</span>
+            <span class="k">pass</span>  <span class="c1"># ee_target_pose_b could stay at the root frame for force control, what matters is ee_target_b</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Undefined target_type within update_target()."</span><span class="p">)</span>
+
+    <span class="c1"># update the target desired pose in world frame (for marker)</span>
+    <span class="n">ee_target_pos_w</span><span class="p">,</span> <span class="n">ee_target_quat_w</span> <span class="o">=</span> <span class="n">combine_frame_transforms</span><span class="p">(</span>
+        <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">root_pose_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">ee_target_pose_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">ee_target_pose_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">ee_target_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_target_pos_w</span><span class="p">,</span> <span class="n">ee_target_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">next_goal_idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">current_goal_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">ee_target_set</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">command</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="p">,</span> <span class="n">ee_target_pose_w</span><span class="p">,</span> <span class="n">next_goal_idx</span>
+
+
+<span class="c1"># Convert the target commands to the task frame</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">convert_to_task_frame</span><span class="p">(</span><span class="n">osc</span><span class="p">:</span> <span class="n">OperationalSpaceController</span><span class="p">,</span> <span class="n">command</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Converts the target commands to the task frame.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        osc: OperationalSpaceController object.</span>
+<span class="sd">        command: Command to be converted.</span>
+<span class="sd">        ee_target_pose_b: Target pose in the body frame.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        command (torch.tensor): Target command in the task frame.</span>
+<span class="sd">        task_frame_pose_b (torch.tensor): Target pose in the task frame.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: Undefined target_type.</span>
+<span class="sd">    """</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+    <span class="n">task_frame_pose_b</span> <span class="o">=</span> <span class="n">ee_target_pose_b</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+    <span class="n">cmd_idx</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">target_type</span> <span class="ow">in</span> <span class="n">osc</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_types</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">"pose_abs"</span><span class="p">:</span>
+            <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">command</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
+                <span class="n">task_frame_pose_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">task_frame_pose_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">command</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">cmd_idx</span> <span class="o">+=</span> <span class="mi">7</span>
+        <span class="k">elif</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">"wrench_abs"</span><span class="p">:</span>
+            <span class="c1"># These are already defined in target frame for ee_goal_wrench_set_tilted_task (since it is</span>
+            <span class="c1"># easier), so not transforming</span>
+            <span class="n">cmd_idx</span> <span class="o">+=</span> <span class="mi">6</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Undefined target_type within _convert_to_task_frame()."</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">command</span><span class="p">,</span> <span class="n">task_frame_pose_b</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># Load kit helper</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="c1"># Set main camera</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+    <span class="c1"># Design scene</span>
+    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">SceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+    <span class="c1"># Play the simulator</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># Now we are ready!</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+    <span class="c1"># Run the simulator</span>
+    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details><section>
+<h3 id="creating-an-operational-space-controller"><span class="heading-number">1.1</span> 创建 <span class="term">Operational Space Controller</span></h3>
+<p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceController" title="isaaclab.controllers.OperationalSpaceController"><code class="xref py py-class docutils literal notranslate"><span class="pre">OperationalSpaceController</span></code></a> 计算关节 Effort 或 Torque，使 Robot 能够在 Task Space 中同时执行 Motion Control 和 Force Control。</p><p>Task Frame 可以是欧氏空间中的任意 Coordinate Frame，默认使用 Robot Base Frame。若在其他 Frame 中定义目标更方便，可通过 <code class="docutils literal notranslate"><span class="pre">set_command</span></code>() 的 <code class="docutils literal notranslate"><span class="pre">current_task_frame_pose_b</span></code> 参数提供 Task Frame 相对 Robot Base Frame 的 Pose。本教程把与墙面平行的 Frame 作为 Task Frame，这样接触力只需沿该 Frame 的 z 轴指定。<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.controllers.html#isaaclab.controllers.OperationalSpaceControllerCfg" title="isaaclab.controllers.OperationalSpaceControllerCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">OperationalSpaceControllerCfg</span></code></a> 中的相关参数都应按此 Task Frame 理解。</p><p>Motion Target 可以是相对 Robot Base 的 Absolute Pose（<code>target_types: "pose_abs"</code>），也可以是相对当前末端执行器 Pose 的 Relative Pose（<code>target_types: "pose_rel"</code>）。Force Target 使用 Absolute Wrench（<code>target_types: "force_abs"</code>）。同时控制 Pose 和 Force 时，<code class="docutils literal notranslate"><span class="pre">target_types</span></code> 可设为 <code class="docutils literal notranslate"><span class="pre">["pose_abs",</span> <span class="pre">"wrench_abs"]</span></code> 或 <code class="docutils literal notranslate"><span class="pre">["pose_rel",</span> <span class="pre">"wrench_abs"]</span></code>。</p><p><code class="docutils literal notranslate"><span class="pre">motion_control_axes_task</span></code> 和 <code class="docutils literal notranslate"><span class="pre">force_control_axes_task</span></code> 分别指定 Motion Control 与 Force Control 所作用的轴。两个列表各包含六个 <code class="docutils literal notranslate"><span class="pre">0</span></code> 或 <code class="docutils literal notranslate"><span class="pre">1</span></code>，对应三条平移轴和三条旋转轴，并且必须互补。</p><p>Motion Control 的 Stiffness 和 Damping Ratio 分别由 <code class="docutils literal notranslate"><span class="pre">motion_control_stiffness</span></code> 和 <code class="docutils literal notranslate"><span class="pre">motion_damping_ratio_task</span></code> 指定，可以是对所有轴生效的标量，也可以是六元素列表。若希望把这些值作为 Command 的一部分，可将 <code class="docutils literal notranslate"><span class="pre">impedance_mode</span></code> 设为 <code class="docutils literal notranslate"><span class="pre">"variable_kp"</span></code> 或 <code class="docutils literal notranslate"><span class="pre">"variable"</span></code>，并通过相应的 <code>motion_stiffness_limits_task</code> 和 <code>motion_damping_limits_task</code> 约束取值范围。</p><p>Contact Force 可以采用 Open-Loop Control，也可以设置 <code class="docutils literal notranslate"><span class="pre">contact_wrench_stiffness_task</span></code>，使用包含 Feedforward Term 的 Closed-Loop Control。目前 Contact Sensor 只能测量线性 Contact Wrench，因此闭环控制只使用该参数的前三个元素。</p><p>将 <code class="docutils literal notranslate"><span class="pre">inertial_dynamics_decoupling</span></code> 设为 <code class="docutils literal notranslate"><span class="pre">True</span></code>，可利用 Robot Inertia Matrix 解耦 Task Space Acceleration，这对快速运动的控制精度尤其重要。若将 <code class="docutils literal notranslate"><span class="pre">partial_inertial_dynamics_decoupling</span></code> 设为 True，则忽略平移轴和旋转轴之间的惯性耦合。</p><p>如需在 Operational Space Command 中加入 Gravity Compensation，可将 <code class="docutils literal notranslate"><span class="pre">gravity_compensation</span></code> 设为 <code class="docutils literal notranslate"><span class="pre">True</span></code>。</p><p>冗余 Robot 还需要考虑 Null Space Control。Null Space 中的关节运动不会改变 Task Space Coordinate；如果不加约束，关节可能漂移甚至接近 Limit。将 <code class="docutils literal notranslate"><span class="pre">nullspace_control</span></code> 设为 <code class="docutils literal notranslate"><span class="pre">"position"</span></code> 可启用 Null-Space PD Controller，并通过 <code class="docutils literal notranslate"><span class="pre">nullspace_stiffness</span></code> 和 <code class="docutils literal notranslate"><span class="pre">nullspace_damping_ratio</span></code> 调整其行为。只有启用完整 Inertial Dynamics Decoupling（即相关选项不是 <code>False</code>）时，Null Space 与 Task Space 才能在理论上完全解耦；默认控制模式为 <code>"none"</code>。</p><p>该 OSC 实现使用 PyTorch，以 Batch 形式完成计算。</p><p>本教程用 <code class="docutils literal notranslate"><span class="pre">"pose_abs"</span></code> 控制除 z 轴外的 Motion，用 <code class="docutils literal notranslate"><span class="pre">"wrench_abs"</span></code> 控制 z 轴 Force；启用完整 Inertial Decoupling，但不启用 Gravity Compensation，因为 Robot Configuration 已关闭 Gravity。Impedance Mode 设为 <code class="docutils literal notranslate"><span class="pre">"variable_kp"</span></code>，Null-Space Control 设为 <code class="docutils literal notranslate"><span class="pre">"position"</span></code>，目标关节 Position 取关节 Limit 的中点。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Create the OSC</span>
+    <span class="n">osc_cfg</span> <span class="o">=</span> <span class="n">OperationalSpaceControllerCfg</span><span class="p">(</span>
+        <span class="n">target_types</span><span class="o">=</span><span class="p">[</span><span class="s2">"pose_abs"</span><span class="p">,</span> <span class="s2">"wrench_abs"</span><span class="p">],</span>
+        <span class="n">impedance_mode</span><span class="o">=</span><span class="s2">"variable_kp"</span><span class="p">,</span>
+        <span class="n">inertial_dynamics_decoupling</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">partial_inertial_dynamics_decoupling</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">gravity_compensation</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">motion_damping_ratio_task</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">contact_wrench_stiffness_task</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+        <span class="n">motion_control_axes_task</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+        <span class="n">contact_wrench_control_axes_task</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+        <span class="n">nullspace_control</span><span class="o">=</span><span class="s2">"position"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">osc</span> <span class="o">=</span> <span class="n">OperationalSpaceController</span><span class="p">(</span><span class="n">osc_cfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="updating-the-states-of-the-robot"><span class="heading-number">1.2</span> 更新 <span class="term">Robot</span> 的状态</h3>
+<p>OSC 只负责计算，因此用户必须提供 Robot 的 Jacobian Matrix、Mass/Inertia Matrix、末端执行器 Pose 和 Velocity、Contact Force，以及关节 Position 和 Velocity；这些量都使用 Root Frame。若启用相应功能，还需提供 Gravity Compensation Vector 和 Null-Space Joint Position Target。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Update robot states</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">update_states</span><span class="p">(</span>
+    <span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">,</span>
+    <span class="n">robot</span><span class="p">:</span> <span class="n">Articulation</span><span class="p">,</span>
+    <span class="n">ee_frame_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">arm_joint_ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="n">contact_forces</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Update the robot states.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sim: (SimulationContext) Simulation context.</span>
+<span class="sd">        scene: (InteractiveScene) Interactive scene.</span>
+<span class="sd">        robot: (Articulation) Robot articulation.</span>
+<span class="sd">        ee_frame_idx: (int) End-effector frame index.</span>
+<span class="sd">        arm_joint_ids: (list[int]) Arm joint indices.</span>
+<span class="sd">        contact_forces: (ContactSensor) Contact sensor.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        jacobian_b (torch.tensor): Jacobian in the body frame.</span>
+<span class="sd">        mass_matrix (torch.tensor): Mass matrix.</span>
+<span class="sd">        gravity (torch.tensor): Gravity vector.</span>
+<span class="sd">        ee_pose_b (torch.tensor): End-effector pose in the body frame.</span>
+<span class="sd">        ee_vel_b (torch.tensor): End-effector velocity in the body frame.</span>
+<span class="sd">        root_pose_w (torch.tensor): Root pose in the world frame.</span>
+<span class="sd">        ee_pose_w (torch.tensor): End-effector pose in the world frame.</span>
+<span class="sd">        ee_force_b (torch.tensor): End-effector force in the body frame.</span>
+<span class="sd">        joint_pos (torch.tensor): The joint positions.</span>
+<span class="sd">        joint_vel (torch.tensor): The joint velocities.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: Undefined target_type.</span>
+<span class="sd">    """</span>
+    <span class="c1"># obtain dynamics related quantities from simulation</span>
+    <span class="n">ee_jacobi_idx</span> <span class="o">=</span> <span class="n">ee_frame_idx</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">jacobian_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_jacobians</span><span class="p">()[:,</span> <span class="n">ee_jacobi_idx</span><span class="p">,</span> <span class="p">:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+    <span class="n">mass_matrix</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_generalized_mass_matrices</span><span class="p">()[:,</span> <span class="n">arm_joint_ids</span><span class="p">,</span> <span class="p">:][:,</span> <span class="p">:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+    <span class="n">gravity</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_gravity_compensation_forces</span><span class="p">()[:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+    <span class="c1"># Convert the Jacobian from world to root frame</span>
+    <span class="n">jacobian_b</span> <span class="o">=</span> <span class="n">jacobian_w</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+    <span class="n">root_rot_matrix</span> <span class="o">=</span> <span class="n">matrix_from_quat</span><span class="p">(</span><span class="n">quat_inv</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">))</span>
+    <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">root_rot_matrix</span><span class="p">,</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bmm</span><span class="p">(</span><span class="n">root_rot_matrix</span><span class="p">,</span> <span class="n">jacobian_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:,</span> <span class="p">:])</span>
+
+    <span class="c1"># Compute current pose of the end-effector</span>
+    <span class="n">root_pos_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span>
+    <span class="n">root_quat_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span>
+    <span class="n">ee_pos_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_pos_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">]</span>
+    <span class="n">ee_quat_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_quat_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">]</span>
+    <span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span><span class="n">root_pos_w</span><span class="p">,</span> <span class="n">root_quat_w</span><span class="p">,</span> <span class="n">ee_pos_w</span><span class="p">,</span> <span class="n">ee_quat_w</span><span class="p">)</span>
+    <span class="n">root_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">root_pos_w</span><span class="p">,</span> <span class="n">root_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">ee_pose_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_w</span><span class="p">,</span> <span class="n">ee_quat_w</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">ee_pose_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_pos_b</span><span class="p">,</span> <span class="n">ee_quat_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Compute the current velocity of the end-effector</span>
+    <span class="n">ee_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_vel_w</span><span class="p">[:,</span> <span class="n">ee_frame_idx</span><span class="p">,</span> <span class="p">:]</span>  <span class="c1"># Extract end-effector velocity in the world frame</span>
+    <span class="n">root_vel_w</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_vel_w</span>  <span class="c1"># Extract root velocity in the world frame</span>
+    <span class="n">relative_vel_w</span> <span class="o">=</span> <span class="n">ee_vel_w</span> <span class="o">-</span> <span class="n">root_vel_w</span>  <span class="c1"># Compute the relative velocity in the world frame</span>
+    <span class="n">ee_lin_vel_b</span> <span class="o">=</span> <span class="n">quat_apply_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">])</span>  <span class="c1"># From world to root frame</span>
+    <span class="n">ee_ang_vel_b</span> <span class="o">=</span> <span class="n">quat_apply_inverse</span><span class="p">(</span><span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="n">relative_vel_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span>
+    <span class="n">ee_vel_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">ee_lin_vel_b</span><span class="p">,</span> <span class="n">ee_ang_vel_b</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Calculate the contact force</span>
+    <span class="n">ee_force_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">contact_forces</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>  <span class="c1"># update contact sensor</span>
+    <span class="c1"># Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and</span>
+    <span class="c1"># taking the max of three surfaces as only one should be the contact of interest</span>
+    <span class="n">ee_force_w</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">contact_forces</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">net_forces_w_history</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># This is a simplification, only for the sake of testing.</span>
+    <span class="n">ee_force_b</span> <span class="o">=</span> <span class="n">ee_force_w</span>
+
+    <span class="c1"># Get joint positions and velocities</span>
+    <span class="n">joint_pos</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+    <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="n">arm_joint_ids</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">jacobian_b</span><span class="p">,</span>
+        <span class="n">mass_matrix</span><span class="p">,</span>
+        <span class="n">gravity</span><span class="p">,</span>
+        <span class="n">ee_pose_b</span><span class="p">,</span>
+        <span class="n">ee_vel_b</span><span class="p">,</span>
+        <span class="n">root_pose_w</span><span class="p">,</span>
+        <span class="n">ee_pose_w</span><span class="p">,</span>
+        <span class="n">ee_force_b</span><span class="p">,</span>
+        <span class="n">joint_pos</span><span class="p">,</span>
+        <span class="n">joint_vel</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="computing-robot-command"><span class="heading-number">1.3</span> 计算 <span class="term">Robot</span> <span class="term">Command</span></h3>
+<p>OSC 将设置目标 Command 与计算关节 Effort 分开。Command Vector 按 <code class="docutils literal notranslate"><span class="pre">target_types</span></code> 中的顺序包含各目标；当 impedance_mode 为 <code class="docutils literal notranslate"><span class="pre">"variable_kp"</span></code> 或 <code class="docutils literal notranslate"><span class="pre">"variable"</span></code> 时，还需附加 Stiffness 和 Damping Ratio。所有值都应位于同一 Task Frame，并按顺序拼接；代码以 <code>_task</code> 下标标识这些量。</p><p>本教程先在 Task Frame 中定义目标 Wrench，再将目标 Pose 转换到 Task Frame：</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Convert the target commands to the task frame</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">convert_to_task_frame</span><span class="p">(</span><span class="n">osc</span><span class="p">:</span> <span class="n">OperationalSpaceController</span><span class="p">,</span> <span class="n">command</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Converts the target commands to the task frame.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        osc: OperationalSpaceController object.</span>
+<span class="sd">        command: Command to be converted.</span>
+<span class="sd">        ee_target_pose_b: Target pose in the body frame.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        command (torch.tensor): Target command in the task frame.</span>
+<span class="sd">        task_frame_pose_b (torch.tensor): Target pose in the task frame.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: Undefined target_type.</span>
+<span class="sd">    """</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+    <span class="n">task_frame_pose_b</span> <span class="o">=</span> <span class="n">ee_target_pose_b</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+    <span class="n">cmd_idx</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">target_type</span> <span class="ow">in</span> <span class="n">osc</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">target_types</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">"pose_abs"</span><span class="p">:</span>
+            <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">command</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtract_frame_transforms</span><span class="p">(</span>
+                <span class="n">task_frame_pose_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">task_frame_pose_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">command</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">command</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">cmd_idx</span> <span class="o">+=</span> <span class="mi">7</span>
+        <span class="k">elif</span> <span class="n">target_type</span> <span class="o">==</span> <span class="s2">"wrench_abs"</span><span class="p">:</span>
+            <span class="c1"># These are already defined in target frame for ee_goal_wrench_set_tilted_task (since it is</span>
+            <span class="c1"># easier), so not transforming</span>
+            <span class="n">cmd_idx</span> <span class="o">+=</span> <span class="mi">6</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Undefined target_type within _convert_to_task_frame()."</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">command</span><span class="p">,</span> <span class="n">task_frame_pose_b</span>
+</pre></div>
+</div>
+<p>随后调用 OSC，传入 Task Frame 中的 Command Vector、Base Frame 中的末端执行器 Pose，以及 Task Frame 相对 Base Frame 的 Pose。OSC 内部会在 Base Frame 中完成计算。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>            <span class="c1"># set the osc command</span>
+            <span class="n">osc</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="n">command</span><span class="p">,</span> <span class="n">task_frame_pose_b</span> <span class="o">=</span> <span class="n">convert_to_task_frame</span><span class="p">(</span><span class="n">osc</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">,</span> <span class="n">ee_target_pose_b</span><span class="o">=</span><span class="n">ee_target_pose_b</span><span class="p">)</span>
+            <span class="n">osc</span><span class="o">.</span><span class="n">set_command</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">,</span> <span class="n">current_ee_pose_b</span><span class="o">=</span><span class="n">ee_pose_b</span><span class="p">,</span> <span class="n">current_task_frame_pose_b</span><span class="o">=</span><span class="n">task_frame_pose_b</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>根据 Robot 状态和目标 Command 计算关节 Effort 或 Torque：</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>            <span class="c1"># compute the joint commands</span>
+            <span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">osc</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span>
+                <span class="n">jacobian_b</span><span class="o">=</span><span class="n">jacobian_b</span><span class="p">,</span>
+                <span class="n">current_ee_pose_b</span><span class="o">=</span><span class="n">ee_pose_b</span><span class="p">,</span>
+                <span class="n">current_ee_vel_b</span><span class="o">=</span><span class="n">ee_vel_b</span><span class="p">,</span>
+                <span class="n">current_ee_force_b</span><span class="o">=</span><span class="n">ee_force_b</span><span class="p">,</span>
+                <span class="n">mass_matrix</span><span class="o">=</span><span class="n">mass_matrix</span><span class="p">,</span>
+                <span class="n">gravity</span><span class="o">=</span><span class="n">gravity</span><span class="p">,</span>
+                <span class="n">current_joint_pos</span><span class="o">=</span><span class="n">joint_pos</span><span class="p">,</span>
+                <span class="n">current_joint_vel</span><span class="o">=</span><span class="n">joint_vel</span><span class="p">,</span>
+                <span class="n">nullspace_joint_pos_target</span><span class="o">=</span><span class="n">joint_centers</span><span class="p">,</span>
+            <span class="p">)</span>
+</pre></div>
+</div>
+<p>最后将计算得到的关节 Effort 或 Torque 目标发送给 Robot。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>            <span class="c1"># apply actions</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">set_joint_effort_target</span><span class="p">(</span><span class="n">joint_efforts</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">arm_joint_ids</span><span class="p">)</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">2</span> 代码执行</h2>
+<p>您现在可以运行 <span class="term">Script</span> 并查看结果：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/05_controllers/run_osc.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">128</span>
+</pre></div>
+</div>
+<p><span class="term">Script</span> 将以 128 <span class="term">Robots</span> 启动 <span class="term">Simulation</span>。 <span class="term">Robots</span> 将使用 OSC 进行控制。
+除红色倾斜墙外，还应使用框架标记显示当前和所需的末端执行器 <span class="term">Poses</span>。
+您应该看到 <span class="term">Robot</span> 达到所需的 <span class="term">Pose</span>，同时施加垂直于墙壁的恒定力
+表面。</p>
+<figure class="align-center" style="width: 100%">
+<img alt="result of run_osc.py" src="../../assets/tutorial_operational_space_controller.jpg" class="tutorial-image">
+</figure>
+<p>要停止 <span class="term">Simulation</span>，您可以关闭窗口或按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 在 <span class="term">Terminal</span> 中。</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="run_diff_ik.html">← 上一篇：使用 Task-Space Controller</a>
+        <a href="../00_sim/create_empty.html">下一篇：创建空场景 →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/05_controllers/run_osc.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#creating-an-operational-space-controller" class="toc-level-2">1.1 创建 Operational Space Controller</a><a href="#updating-the-states-of-the-robot" class="toc-level-2">1.2 更新 Robot 的状态</a><a href="#computing-robot-command" class="toc-level-2">1.3 计算 Robot Command</a><a href="#the-code-execution">2 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

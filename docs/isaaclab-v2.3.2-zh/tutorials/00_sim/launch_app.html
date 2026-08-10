@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>深入了解 AppLauncher — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="create_empty.html">创建空场景</a>
+      <a data-search-item href="spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a class="active" data-search-item href="launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 深入了解 AppLauncher</h1>
+      <article class="bd-article">
+                  
+  <section id="deep-dive-into-applauncher">
+
+<p>本教程将深入介绍如何使用 <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher"><code class="docutils literal notranslate">app.AppLauncher</code></a>，通过 <span class="term">CLI</span> 参数和环境变量配置 Simulator。重点演示如何启用实时串流、配置 <a class="reference external" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher"><code class="docutils literal notranslate">app.AppLauncher</code></a> 所封装的 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp"><code class="docutils literal notranslate">isaacsim.simulation_app.SimulationApp</code></a> 实例，同时兼容用户自定义选项。</p><p><a class="reference external" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher"><code class="docutils literal notranslate">app.AppLauncher</code></a> 对 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp"><code class="docutils literal notranslate">isaacsim.simulation_app.SimulationApp</code></a> 进行了封装，目的是简化后者的配置。<a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp"><code class="docutils literal notranslate">isaacsim.simulation_app.SimulationApp</code></a> 需要加载多个 <span class="term">Extension</span> 才能启用相应功能；其中部分 <span class="term">Extension</span> 对加载顺序有明确要求，并且彼此存在依赖关系。</p><p>此外，<code>headless</code> 等启动选项必须在创建实例时确定，并可能与特定 <span class="term">Extension</span> 存在隐式关联，例如实时串流相关的 <span class="term">Extension</span>。<a class="reference external" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher"><code class="docutils literal notranslate">app.AppLauncher</code></a> 为这些 <span class="term">Extension</span> 和启动选项提供了统一、可移植的配置接口，适用于不同的使用场景。为此，它提供了可与用户自定义参数合并的 <span class="term">CLI</span> 及环境变量选项，并将属于 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp"><code class="docutils literal notranslate">isaacsim.simulation_app.SimulationApp</code></a> 的参数继续传递给该实例。该启动工具由 <code>isaaclab.app</code> Module 提供。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>launch_app.py</code>，位于 <code>scripts/tutorials/00_sim</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">launch_app.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""</span>
+<span class="sd">This script demonstrates how to run IsaacSim via the AppLauncher</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Usage</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+<span class="hll">
+</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+</span><span class="hll">
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+</span><span class="hll">
+</span><span class="hll"><span class="c1"># create argparser</span>
+</span><span class="hll"><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on running IsaacSim via the AppLauncher."</span><span class="p">)</span>
+</span><span class="hll"><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--size"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Side-length of cuboid"</span><span class="p">)</span>
+</span><span class="hll"><span class="c1"># SimulationApp arguments https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html?highlight=simulationapp#isaacsim.simulation_app.SimulationApp</span>
+</span><span class="hll"><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+</span><span class="hll">    <span class="s2">"--width"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1280</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Width of the viewport and generated images. Defaults to 1280"</span>
+</span><span class="hll"><span class="p">)</span>
+</span><span class="hll"><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+</span><span class="hll">    <span class="s2">"--height"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">720</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Height of the viewport and generated images. Defaults to 720"</span>
+</span><span class="hll"><span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll"><span class="c1"># append AppLauncher cli args</span>
+</span><span class="hll"><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+</span><span class="hll"><span class="c1"># parse the arguments</span>
+</span><span class="hll"><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+</span><span class="hll"><span class="c1"># launch omniverse app</span>
+</span><span class="hll"><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+</span><span class="hll"><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+</span>
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Designs the scene by spawning ground plane, light, objects and meshes from usd files."""</span>
+    <span class="c1"># Ground-plane</span>
+    <span class="n">cfg_ground</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
+    <span class="n">cfg_ground</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">cfg_ground</span><span class="p">)</span>
+
+    <span class="c1"># spawn distant light</span>
+    <span class="n">cfg_light_distant</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DistantLightCfg</span><span class="p">(</span>
+        <span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">cfg_light_distant</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/lightDistant"</span><span class="p">,</span> <span class="n">cfg_light_distant</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+
+    <span class="c1"># spawn a cuboid</span>
+    <span class="n">cfg_cuboid</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span>
+        <span class="n">size</span><span class="o">=</span><span class="p">[</span><span class="n">args_cli</span><span class="o">.</span><span class="n">size</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+    <span class="p">)</span>
+    <span class="c1"># Spawn cuboid, altering translation on the z-axis to scale to its size</span>
+    <span class="n">cfg_cuboid</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Object"</span><span class="p">,</span> <span class="n">cfg_cuboid</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">size</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+
+    <span class="c1"># Initialize the simulation context</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="c1"># Set main camera</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+
+    <span class="c1"># Design scene by adding assets to it</span>
+    <span class="n">design_scene</span><span class="p">()</span>
+
+    <span class="c1"># Play the simulator</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># Now we are ready!</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+
+    <span class="c1"># Simulate physics</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># perform step</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><section>
+<h3 id="adding-arguments-to-the-argparser"><span class="heading-number">2.1</span> 向 ArgumentParser 添加参数</h3><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 可以与脚本自定义的 CLI 参数共同使用，同时提供统一、可移植的启动接口。</p><p>本教程创建一个 <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.ArgumentParser</span></code></a>，并添加脚本专用参数 <code class="docutils literal notranslate"><span class="pre">--size</span></code>，以及将传递给 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim API)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> 的 <code class="docutils literal notranslate"><span class="pre">--height</span></code> 和 <code class="docutils literal notranslate"><span class="pre">--width</span></code>。</p><p><code class="docutils literal notranslate"><span class="pre">--size</span></code> 不由 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 处理，但可以与 AppLauncher 参数合并到同一个 <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArgumentParser</span></code></a> 中。调用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher.add_app_launcher_args" title="isaaclab.app.AppLauncher.add_app_launcher_args"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_app_launcher_args()</span></code></a> 后，再使用 <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.parse_args" title="(in Python v3.14)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">argparse.ArgumentParser.parse_args()</span></code></a> 生成 <a class="reference external" href="https://docs.python.org/3/library/argparse.html#argparse.Namespace" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">argparse.Namespace</span></code></a>，并将结果直接传给 AppLauncher。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># create argparser</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on running IsaacSim via the AppLauncher."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--size"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Side-length of cuboid"</span><span class="p">)</span>
+<span class="c1"># SimulationApp arguments https://docs.omniverse.nvidia.com/py/isaacsim/source/isaacsim.simulation_app/docs/index.html?highlight=simulationapp#isaacsim.simulation_app.SimulationApp</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+    <span class="s2">"--width"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1280</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Width of the viewport and generated images. Defaults to 1280"</span>
+<span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+    <span class="s2">"--height"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">720</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Height of the viewport and generated images. Defaults to 720"</span>
+<span class="p">)</span>
+
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+</pre></div>
+</div>
+<p>以上只是向 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 提供参数的一种方式；其他用法请参阅其 API 文档。</p></section>
+<section>
+<h3 id="understanding-the-output-of-help"><span class="heading-number">2.2</span> 理解 --help 的输出</h3><p>执行脚本时传入 <code class="docutils literal notranslate"><span class="pre">--help</span></code>，可以同时查看脚本自定义参数和 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 参数。</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="go">./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --help</span>
+
+<span class="go">[INFO] Using python from: /isaac-sim/python.sh</span>
+<span class="go">[INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.</span>
+<span class="go">[INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.</span>
+<span class="go">usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless] [--livestream {0,1,2}]</span>
+<span class="go">                     [--enable_cameras] [--verbose] [--experience EXPERIENCE]</span>
+
+<span class="go">Tutorial on running IsaacSim via the AppLauncher.</span>
+
+<span class="go">options:</span>
+<span class="go">-h, --help            show this help message and exit</span>
+<span class="go">--size SIZE           Side-length of cuboid</span>
+<span class="go">--width WIDTH         Width of the viewport and generated images. Defaults to 1280</span>
+<span class="go">--height HEIGHT       Height of the viewport and generated images. Defaults to 720</span>
+
+<span class="go">app_launcher arguments:</span>
+<span class="go">--headless            Force display off at all times.</span>
+<span class="go">--livestream {0,1,2}</span>
+<span class="go">                      Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.</span>
+<span class="go">--enable_cameras      Enable cameras when running without a GUI.</span>
+<span class="go">--verbose             Enable verbose terminal logging from the SimulationApp.</span>
+<span class="go">--experience EXPERIENCE</span>
+<span class="go">                      The experience file to load when launching the SimulationApp.</span>
+
+<span class="go">                      * If an empty string is provided, the experience file is determined based on the headless flag.</span>
+<span class="go">                      * If a relative path is provided, it is resolved relative to the `apps` folder in Isaac Sim and</span>
+<span class="go">                        Isaac Lab (in that order).</span>
+</pre></div>
+</div>
+<p>输出中会列出脚本直接定义的 <code class="docutils literal notranslate"><span class="pre">--size</span></code>、<code class="docutils literal notranslate"><span class="pre">--height</span></code> 和 <code class="docutils literal notranslate"><span class="pre">--width</span></code>，以及由 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 添加的其他参数。</p><p>帮助信息前的 <code class="docutils literal notranslate"><span class="pre">[INFO]</span></code> 消息还会指出哪些参数将交给 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim API)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a>。本例中的 <code class="docutils literal notranslate"><span class="pre">--height</span></code> 和 <code class="docutils literal notranslate"><span class="pre">--width</span></code> 与 SimulationApp 支持的名称和类型匹配，因此会自动转交。更多示例请参阅 SimulationApp 配置说明。</p></section>
+<section>
+<h3 id="using-environment-variables"><span class="heading-number">2.3</span> 使用环境变量</h3><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 的 <code class="docutils literal notranslate"><span class="pre">--livestream</span></code>、<code class="docutils literal notranslate"><span class="pre">--headless</span></code> 等参数都有对应的环境变量。通过 CLI 传入参数，与在运行脚本前设置相应环境变量具有相同效果。</p><p>环境变量适合保存跨会话使用的默认配置，例如写入 <code class="docutils literal notranslate"><span class="pre">${HOME}/.bashrc</span></code>。如果同时提供 CLI 参数和环境变量，则 CLI 参数优先。</p><p>这些参数适用于大多数通过 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 启动的脚本。需要注意的是，<code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> 会启用 Off-Screen Renderer，并且只兼容 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext" title="isaaclab.sim.SimulationContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.sim.SimulationContext</span></code></a>，不适用于 Isaac Sim 原生的 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/source/deprecated/isaacsim.core.api/docs/index.html#isaacsim.core.api.simulation_context.SimulationContext" title="(in Isaac Sim API)"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaacsim.core.api.simulation_context.SimulationContext</span></code></a>。</p></section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>现在运行示例 Script：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5</span>
+</pre></div>
+</div>
+<p>该 Command 会在 Simulation 中生成一个体积为 0.5 m³ 的长方体。由于 <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code> 环境变量隐含启用了 <code class="docutils literal notranslate"><span class="pre">--headless</span></code>，因此不会显示本地 GUI。需要查看画面时，可以使用 Isaac WebRTC Livestream；目前这是 Container 中支持的 Visualization 方式。按启动 Terminal 中的 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 可终止进程。</p><figure class="align-center" style="width: 100%">
+<img alt="result of launch_app.py" src="../../assets/tutorial_launch_app.jpg" class="tutorial-image">
+</figure>
+<p>接下来检查 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 如何处理相互冲突的参数：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2</span>
+</pre></div>
+</div>
+<p>运行结果与上一个 Command 相同。虽然环境变量设置了 <code class="docutils literal notranslate"><span class="pre">LIVESTREAM=0</span></code>，但 CLI 参数 <code class="docutils literal notranslate"><span class="pre">--livestream</span></code> 的优先级更高，因此最终仍会启用 Livestream。按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 可终止进程。</p><p>最后，通过 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.app.html#isaaclab.app.AppLauncher" title="isaaclab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a> 向 <a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp" title="(in Isaac Sim API)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationApp</span></code></a> 传递参数：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="go">LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080</span>
+</pre></div>
+</div>
+<p>运行行为仍与前面相同，但 Viewport 会以 1920 × 1080 分辨率 Rendering。采集高分辨率视频时可以提高该值；若更重视 Simulation 性能，则可以降低分辨率。按启动 Terminal 中的 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 可终止进程。</p></section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="spawn_prims.html">← 上一篇：在 Scene 中生成 Prim</a>
+        <a href="../01_assets/add_new_robot.html">下一篇：向 Isaac Lab 添加新 Robot →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/00_sim/launch_app.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#adding-arguments-to-the-argparser" class="toc-level-2">2.1 向 ArgumentParser 添加参数</a><a href="#understanding-the-output-of-help" class="toc-level-2">2.2 理解 --help 的输出</a><a href="#using-environment-variables" class="toc-level-2">2.3 使用环境变量</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>在 Scene 中生成 Prim — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="create_empty.html">创建空场景</a>
+      <a class="active" data-search-item href="spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 在 Scene 中生成 Prim</h1>
+      <article class="bd-article">
+                  
+  <section id="spawning-prims-into-the-scene">
+<span id="tutorial-spawn-prims"></span>
+<p>本教程介绍如何通过 Python 在 Isaac Lab 的 <span class="term">Scene</span> 中生成不同的 <span class="term">Object</span>（或 <span class="term">Prim</span>）。内容承接上一节的独立脚本启动流程，并演示如何生成 <span class="term">Ground Plane</span>、<span class="term">Light</span>、基本几何体，以及如何从 USD 文件加载 Mesh。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>spawn_prims.py</code>，位于 <code>scripts/tutorials/00_sim</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">spawn_prims.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""This script demonstrates how to spawn prims into the scene.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Usage</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># create argparser</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on spawning prims into the scene."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Designs the scene by spawning ground plane, light, objects and meshes from usd files."""</span>
+<span class="hll">    <span class="c1"># Ground-plane</span>
+</span><span class="hll">    <span class="n">cfg_ground</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
+</span><span class="hll">    <span class="n">cfg_ground</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">cfg_ground</span><span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># spawn distant light</span>
+</span><span class="hll">    <span class="n">cfg_light_distant</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DistantLightCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="n">cfg_light_distant</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/lightDistant"</span><span class="p">,</span> <span class="n">cfg_light_distant</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># create a new xform prim for all objects to be spawned under</span>
+</span><span class="hll">    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Objects"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">)</span>
+</span><span class="hll">    <span class="c1"># spawn a red cone</span>
+</span><span class="hll">    <span class="n">cfg_cone</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">radius</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">height</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="n">cfg_cone</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Objects/Cone1"</span><span class="p">,</span> <span class="n">cfg_cone</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+</span><span class="hll">    <span class="n">cfg_cone</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Objects/Cone2"</span><span class="p">,</span> <span class="n">cfg_cone</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># spawn a green cone with colliders and rigid body</span>
+</span><span class="hll">    <span class="n">cfg_cone_rigid</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">radius</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">height</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll">        <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+</span><span class="hll">        <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll">        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="n">cfg_cone_rigid</span><span class="o">.</span><span class="n">func</span><span class="p">(</span>
+</span><span class="hll">        <span class="s2">"/World/Objects/ConeRigid"</span><span class="p">,</span> <span class="n">cfg_cone_rigid</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span> <span class="n">orientation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># spawn a blue cuboid with deformable body</span>
+</span><span class="hll">    <span class="n">cfg_cuboid_deformable</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">MeshCuboidCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll">        <span class="n">deformable_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll">        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+</span><span class="hll">        <span class="n">physics_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyMaterialCfg</span><span class="p">(),</span>
+</span><span class="hll">    <span class="p">)</span>
+</span><span class="hll">    <span class="n">cfg_cuboid_deformable</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Objects/CuboidDeformable"</span><span class="p">,</span> <span class="n">cfg_cuboid_deformable</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">))</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># spawn a usd file of a table into the scene</span>
+</span><span class="hll">    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Props/Mounts/SeattleLabTable/table_instanceable.usd"</span><span class="p">)</span>
+</span><span class="hll">    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Objects/Table"</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.05</span><span class="p">))</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+
+    <span class="c1"># Initialize the simulation context</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="c1"># Set main camera</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+    <span class="c1"># Design scene</span>
+    <span class="n">design_scene</span><span class="p">()</span>
+    <span class="c1"># Play the simulator</span>
+<span class="hll">    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</span><span class="hll">    <span class="c1"># Now we are ready!</span>
+</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+
+    <span class="c1"># Simulate physics</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># perform step</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p>Omniverse 使用 USD（Universal Scene Description）组织 Scene。USD 既是文件格式，也是一套用于分层描述 3D Scene 的系统，其层级结构类似文件系统。如果需要了解完整机制，建议阅读 USD 官方文档。</p><p>理解本教程前，需要先掌握以下几个 USD 基本概念。</p><ul class="simple">
+<li><p><strong><span class="term">Prim</span> (<span class="term">Prims</span>)</strong>：这些是 <span class="term">USD</span> <span class="term">Scene</span> 的基本构建块。它们可以被认为是 <span class="term">Scene</span> 中的<span class="term">Node</span>
+图表。每个<span class="term">Node</span>可以是<span class="term">Mesh</span>、<span class="term">Light</span>、<span class="term">Camera</span> 或 <span class="term">Transform</span>。也可以是其下的一组其他<span class="term">Prims</span>。</p></li>
+<li><p><strong>属性</strong>：这些是 <span class="term">Prim</span> 的属性。它们可以被认为是<span class="term">Key-Value Pair</span>。例如，<span class="term">Prim</span> 可以
+有一个属性称为 <code class="docutils literal notranslate"><span class="pre">color</span></code> 值为 <code class="docutils literal notranslate"><span class="pre">red</span></code>.</p></li>
+<li><p>Relationships：表示 Prim 之间的连接，可以理解为指向其他 Prim 的 <code>pointer</code>。例如，Mesh Prim 可以通过 Relationship 关联 Material Prim，以指定着色材质。</p></li>
+</ul>
+<p>Prim、Attribute 和 Relationship 共同组成 USD Stage。可以把 Stage 理解为容纳 Scene 中全部 Prim 的容器；设计 Scene，本质上就是构建 USD Stage。</p><p>直接使用 USD API 灵活度很高，但学习和使用成本也较高。Isaac Lab 因此在 USD API 之上提供由 Configuration 驱动的 Prim 生成接口，相关实现位于 <code class="xref py py-mod docutils literal notranslate"><span class="pre">sim.spawners</span></code> Module。</p><p>生成 Prim 时，需要创建相应的 Configuration Class 实例，用于描述 Prim 的属性、材质及其他关系。随后将该配置、目标 Prim Path 和 Transform 传给对应的 Spawner Function，由其把 Prim 添加到 Scene。</p><p>从整体上看，调用流程如下：</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Create a configuration class instance</span>
+<span class="n">cfg</span> <span class="o">=</span> <span class="n">MyPrimCfg</span><span class="p">()</span>
+<span class="n">prim_path</span> <span class="o">=</span> <span class="s2">"/path/to/prim"</span>
+
+<span class="c1"># Spawn the prim into the scene using the corresponding spawner function</span>
+<span class="n">spawn_my_prim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">orientation</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="c1"># OR</span>
+<span class="c1"># Use the spawner function directly from the configuration class</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">orientation</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">scale</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>本教程将演示多种 Prim 的生成方式。有关全部 Spawner，请参阅 Isaac Lab 中的 <code class="xref py py-mod docutils literal notranslate"><span class="pre">sim.spawners</span></code> Module。</p><div class="admonition attention">
+<p class="admonition-title">注意</p>
+<p>所有 <span class="term">Scene</span> 设计必须在 <span class="term">Simulation</span> 开始之前进行。一旦 <span class="term">Simulation</span> 启动，我们建议保留
+<span class="term">Scene</span> 被冻结，仅改变 <span class="term">Prim</span> 的属性。这对于 <span class="term">GPU</span> <span class="term">Simulation</span> 尤为重要
+因为在 <span class="term">Simulation</span> 期间添加新的 <span class="term">Prims</span> 可能会改变 <span class="term">GPU</span> 上的物理 <span class="term">Simulation</span> <span class="term">Buffers</span> 并导致意外
+行为。</p>
+</div>
+<section>
+<h3 id="spawning-a-ground-plane"><span class="heading-number">2.1</span> 生成 Ground Plane</h3><p><a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.from_files.GroundPlaneCfg" title="isaaclab.sim.spawners.from_files.GroundPlaneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GroundPlaneCfg</span></code></a> 用于配置网格状 Ground Plane，可以设置尺寸和外观等属性。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Ground-plane</span>
+    <span class="n">cfg_ground</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
+    <span class="n">cfg_ground</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">cfg_ground</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="spawning-lights"><span class="heading-number">2.2</span> 生成 Light</h3><p>Stage 支持生成 Distant Light、Sphere Light、Disk Light 和 Cylinder Light 等多种 Light Prim。本教程使用 Distant Light；它位于无限远处，并沿固定方向照亮整个 Scene。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># spawn distant light</span>
+    <span class="n">cfg_light_distant</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DistantLightCfg</span><span class="p">(</span>
+        <span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">cfg_light_distant</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/lightDistant"</span><span class="p">,</span> <span class="n">cfg_light_distant</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="spawning-primitive-shapes"><span class="heading-number">2.3</span> 生成 Primitive Shapes</h3><p>生成基本几何体前，需要先了解 Transform Prim（Xform）。Xform 只保存变换属性，可以把多个子 Prim 组织为一组，并对整组应用 Transform。本例创建一个 Xform，用于归组后续生成的几何体。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># create a new xform prim for all objects to be spawned under</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Objects"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>接着使用 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.spawners.html#isaaclab.sim.spawners.shapes.ConeCfg" title="isaaclab.sim.spawners.shapes.ConeCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConeCfg</span></code></a> 生成圆锥体。Configuration 可以设置半径、高度、物理属性和 Material；默认不启用物理与 Material 属性。</p><p>前两个圆锥体 <code class="docutils literal notranslate"><span class="pre">Cone1</span></code> 和 <code class="docutils literal notranslate"><span class="pre">Cone2</span></code> 仅用于显示，因此没有启用物理属性。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># spawn a red cone</span>
+    <span class="n">cfg_cone</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+        <span class="n">radius</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
+    <span class="p">)</span>
+    <span class="n">cfg_cone</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Objects/Cone1"</span><span class="p">,</span> <span class="n">cfg_cone</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+    <span class="n">cfg_cone</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Objects/Cone2"</span><span class="p">,</span> <span class="n">cfg_cone</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>第三个圆锥体 <code class="docutils literal notranslate"><span class="pre">ConeRigid</span></code> 通过 Configuration 启用 Rigid Body Physics。这些属性可用于设置质量、摩擦和恢复系数；未指定时使用 USD Physics 默认值。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># spawn a green cone with colliders and rigid body</span>
+    <span class="n">cfg_cone_rigid</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span>
+        <span class="n">radius</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(),</span>
+        <span class="n">mass_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">1.0</span><span class="p">),</span>
+        <span class="n">collision_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)),</span>
+    <span class="p">)</span>
+    <span class="n">cfg_cone_rigid</span><span class="o">.</span><span class="n">func</span><span class="p">(</span>
+        <span class="s2">"/World/Objects/ConeRigid"</span><span class="p">,</span> <span class="n">cfg_cone_rigid</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span> <span class="n">orientation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+    <span class="p">)</span>
+
+</pre></div>
+</div>
+<p>最后生成带 Deformable Body Physics 的长方体 <code class="docutils literal notranslate"><span class="pre">CuboidDeformable</span></code>。Deformable Body 的顶点可以相对运动，适合模拟布料、橡胶或果冻等 Soft Body。该功能仅支持 GPU Simulation，并要求 Mesh 配置相应物理属性。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># spawn a blue cuboid with deformable body</span>
+    <span class="n">cfg_cuboid_deformable</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">MeshCuboidCfg</span><span class="p">(</span>
+        <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span>
+        <span class="n">deformable_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">(),</span>
+        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+        <span class="n">physics_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyMaterialCfg</span><span class="p">(),</span>
+    <span class="p">)</span>
+    <span class="n">cfg_cuboid_deformable</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Objects/CuboidDeformable"</span><span class="p">,</span> <span class="n">cfg_cuboid_deformable</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">))</span>
+
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="spawning-from-another-file"><span class="heading-number">2.4</span> 从文件加载 Asset</h3><p>Prim 也可以从 USD、URDF 或 OBJ 等文件加载或转换。本教程把一个 Table USD Asset 加入 Scene；其 Mesh、Material 等信息均保存在 USD 文件中。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># spawn a usd file of a table into the scene</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Props/Mounts/SeattleLabTable/table_instanceable.usd"</span><span class="p">)</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Objects/Table"</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.05</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>该 Table 以 Reference 方式加入 Scene，即 Stage 保存的是指向 Asset 的引用，而不是复制全部内容。这样可以非破坏性地修改或覆盖 Material 等属性，而无需改写原始 Asset 文件。</p></section>
+</section>
+<section>
+<h2 id="executing-the-script"><span class="heading-number">3</span> 执行 Script</h2><p>与前面的教程一样，执行以下 Command 运行 Script：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/00_sim/spawn_prims.py
+</pre></div>
+</div>
+<p>Simulation 启动后，窗口中会显示 Ground Plane、Light、多个圆锥体和一张桌子。启用 Rigid Body Physics 的绿色圆锥体会落下，并与桌面和 Ground Plane 发生 Collision；其余圆锥体只用于显示，不会移动。关闭窗口或在 Terminal 中按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 即可停止 Simulation。</p><figure class="align-center" style="width: 100%">
+<img alt="result of spawn_prims.py" src="../../assets/tutorial_spawn_prims.jpg" class="tutorial-image">
+</figure>
+<p>本教程介绍了在 Isaac Lab Scene 中生成多种 Prim 的基本方法，并演示了 Scene 设计和 Spawner 的核心概念。下一节将进一步介绍如何与 Scene 和 Simulation 交互。</p></section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="create_empty.html">← 上一篇：创建空场景</a>
+        <a href="launch_app.html">下一篇：深入了解 AppLauncher →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/00_sim/spawn_prims.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#spawning-a-ground-plane" class="toc-level-2">2.1 生成 Ground Plane</a><a href="#spawning-lights" class="toc-level-2">2.2 生成 Light</a><a href="#spawning-primitive-shapes" class="toc-level-2">2.3 生成 Primitive Shapes</a><a href="#spawning-from-another-file" class="toc-level-2">2.4 从文件加载 Asset</a><a href="#executing-the-script">3 执行 Script</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

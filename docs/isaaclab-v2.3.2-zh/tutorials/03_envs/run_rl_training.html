@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>使用 RL Agent 训练 — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="register_rl_env_gym.html">注册 Environment</a>
+      <a class="active" data-search-item href="run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 使用 RL Agent 训练</h1>
+      <article class="bd-article">
+                  
+  <section id="training-with-an-rl-agent">
+<span id="tutorial-run-rl-training"></span>
+<p>前面的教程已经完成 RL Task Environment 的定义与注册，并使用 Random Agent 验证了交互流程。接下来将进入训练阶段，让 RL Agent 学习解决该 Task。</p><p>虽然 <code>envs.ManagerBasedRLEnv</code> 遵循 <code>gymnasium.Env</code> 接口，但它面向并行仿真：输入和输出使用 Torch Tensor，并以第一维表示 Environment 数量，而不是传统的 NumPy Array。</p><p>不同 RL Library 对 Environment Interface 的要求并不相同。例如，Stable-Baselines3、RSL-RL、RL-Games 和 SKRL 分别使用不同的数据格式。Isaac Lab 因此在 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab_rl/isaaclab_rl.html#module-isaaclab_rl" title="isaaclab_rl"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab_rl</span></code></a> Module 中提供对应 Wrapper，将统一的 Environment 转换为各 Library 所需的接口。</p><p>本教程将使用 Stable-Baselines3 训练 RL Agent，解决 Cartpole 平衡任务。</p><div class="admonition caution">
+<p class="admonition-title">警告</p>
+<p>最后应该将 <span class="term">Environment</span> 与相应的学习 <span class="term">Framework</span> 的 <span class="term">Wrapper</span> 包装起来，
+即在应用所有其他 <span class="term">Wrappers</span> 后。这是因为学习<span class="term">Framework</span>的<span class="term">Wrapper</span>
+修改了 <span class="term">Environment</span> 的 API 的解释，可能不再兼容 <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a>.</p>
+</div>
+<section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>在本教程中，我们使用来自的训练 <span class="term">Script</span> <a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/">Stable-Baselines3</a> <span class="term">Workflow</span> 中
+<code class="docutils literal notranslate"><span class="pre">scripts/reinforcement_learning/sb3</span></code> 目录。</p>
+<details class="code-details">
+<summary>代码 <span class="term">train.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+
+<span class="sd">"""Script to train RL agent with Stable Baselines3."""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">contextlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">signal</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Train an RL agent with Stable-Baselines3."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--video"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Record videos during training."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--video_length"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Length of the recorded video (in steps)."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--video_interval"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Interval between video recordings (in steps)."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to simulate."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--task"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Name of the task."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+    <span class="s2">"--agent"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"sb3_cfg_entry_point"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Name of the RL agent configuration entry point."</span>
+<span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--seed"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Seed used for the environment"</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--log_interval"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">100_000</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Log data every n timesteps."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--checkpoint"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Continue the training from checkpoint."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--max_iterations"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"RL Policy training iterations."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--export_io_descriptors"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Export IO descriptors."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+    <span class="s2">"--keep_all_info"</span><span class="p">,</span>
+    <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span>
+    <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">help</span><span class="o">=</span><span class="s2">"Use a slower SB3 wrapper but keep all the extra training info."</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+    <span class="s2">"--ray-proc-id"</span><span class="p">,</span> <span class="s2">"-rid"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Automatically configured by Ray integration, otherwise None."</span>
+<span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span><span class="p">,</span> <span class="n">hydra_args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_known_args</span><span class="p">()</span>
+<span class="c1"># always enable cameras to record video</span>
+<span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span><span class="p">:</span>
+    <span class="n">args_cli</span><span class="o">.</span><span class="n">enable_cameras</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="c1"># clear out sys.argv for Hydra</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">+</span> <span class="n">hydra_args</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+<span class="hll">
+</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">cleanup_pbar</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    A small helper to stop training and</span>
+<span class="sd">    cleanup progress bar properly on ctrl+c</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">gc</span>
+
+<span class="hll">    <span class="n">tqdm_objects</span> <span class="o">=</span> <span class="p">[</span><span class="n">obj</span> <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">gc</span><span class="o">.</span><span class="n">get_objects</span><span class="p">()</span> <span class="k">if</span> <span class="s2">"tqdm"</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">]</span>
+</span>    <span class="k">for</span> <span class="n">tqdm_object</span> <span class="ow">in</span> <span class="n">tqdm_objects</span><span class="p">:</span>
+<span class="hll">        <span class="k">if</span> <span class="s2">"tqdm_rich"</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="n">tqdm_object</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
+</span><span class="hll">            <span class="n">tqdm_object</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span><span class="hll">    <span class="k">raise</span> <span class="ne">KeyboardInterrupt</span>
+</span>
+
+<span class="c1"># disable KeyboardInterrupt override</span>
+<span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">cleanup_pbar</span><span class="p">)</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+<span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+</span><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">gymnasium</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gym</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3</span><span class="w"> </span><span class="kn">import</span> <span class="n">PPO</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.callbacks</span><span class="w"> </span><span class="kn">import</span> <span class="n">CheckpointCallback</span><span class="p">,</span> <span class="n">LogEveryNTimesteps</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">stable_baselines3.common.vec_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">VecNormalize</span>
+
+<span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span class="hll">    <span class="n">DirectMARLEnv</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">DirectMARLEnvCfg</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">DirectRLEnvCfg</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">ManagerBasedRLEnvCfg</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">multi_agent_to_single_agent</span><span class="p">,</span>
+</span><span class="hll"><span class="p">)</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.dict</span><span class="w"> </span><span class="kn">import</span> <span class="n">print_dict</span>
+</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">dump_yaml</span>
+</span>
+<span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_rl.sb3</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">,</span> <span class="n">process_sb3_cfg</span>
+</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab_tasks</span>  <span class="c1"># noqa: F401</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.utils.hydra</span><span class="w"> </span><span class="kn">import</span> <span class="n">hydra_task_config</span>
+
+<span class="hll"><span class="c1"># import logger</span>
+</span><span class="hll"><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+</span><span class="hll"><span class="c1"># PLACEHOLDER: Extension template (do not remove this comment)</span>
+</span><span class="hll">
+</span><span class="hll">
+</span><span class="hll"><span class="nd">@hydra_task_config</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">agent</span><span class="p">)</span>
+</span><span class="hll"><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">:</span> <span class="n">ManagerBasedRLEnvCfg</span> <span class="o">|</span> <span class="n">DirectRLEnvCfg</span> <span class="o">|</span> <span class="n">DirectMARLEnvCfg</span><span class="p">,</span> <span class="n">agent_cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+</span><span class="hll"><span class="w">    </span><span class="sd">"""Train with stable-baselines agent."""</span>
+</span><span class="hll">    <span class="c1"># randomly sample a seed if seed = -1</span>
+</span>    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">seed</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+<span class="hll">        <span class="n">args_cli</span><span class="o">.</span><span class="n">seed</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10000</span><span class="p">)</span>
+</span><span class="hll">
+</span>    <span class="c1"># override configurations with non-hydra CLI arguments</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span>
+    <span class="n">agent_cfg</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">]</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">seed</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">agent_cfg</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">]</span>
+    <span class="c1"># max iterations for training</span>
+<span class="hll">    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">max_iterations</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span class="hll">        <span class="n">agent_cfg</span><span class="p">[</span><span class="s2">"n_timesteps"</span><span class="p">]</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">max_iterations</span> <span class="o">*</span> <span class="n">agent_cfg</span><span class="p">[</span><span class="s2">"n_steps"</span><span class="p">]</span> <span class="o">*</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># set the environment seed</span>
+</span><span class="hll">    <span class="c1"># note: certain randomizations occur in the environment initialization so we set the seed here</span>
+</span><span class="hll">    <span class="n">env_cfg</span><span class="o">.</span><span class="n">seed</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="p">[</span><span class="s2">"seed"</span><span class="p">]</span>
+</span>    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span>
+
+    <span class="c1"># directory for logging into</span>
+    <span class="n">run_info</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"%Y-%m-</span><span class="si">%d</span><span class="s2">_%H-%M-%S"</span><span class="p">)</span>
+    <span class="n">log_root_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">"logs"</span><span class="p">,</span> <span class="s2">"sb3"</span><span class="p">,</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO] Logging experiment in directory: </span><span class="si">{</span><span class="n">log_root_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="hll">    <span class="c1"># The Ray Tune workflow extracts experiment name using the logging line below, hence,</span>
+</span><span class="hll">    <span class="c1"># do not change it (see PR #2346, comment-2819298849)</span>
+</span><span class="hll">    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Exact experiment name requested from command line: </span><span class="si">{</span><span class="n">run_info</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span class="hll">    <span class="n">log_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_root_path</span><span class="p">,</span> <span class="n">run_info</span><span class="p">)</span>
+</span>    <span class="c1"># dump the configuration into log-directory</span>
+    <span class="n">dump_yaml</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">"params"</span><span class="p">,</span> <span class="s2">"env.yaml"</span><span class="p">),</span> <span class="n">env_cfg</span><span class="p">)</span>
+    <span class="n">dump_yaml</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">"params"</span><span class="p">,</span> <span class="s2">"agent.yaml"</span><span class="p">),</span> <span class="n">agent_cfg</span><span class="p">)</span>
+
+    <span class="c1"># save command used to run the script</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">orig_argv</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">log_dir</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"command.txt"</span><span class="p">)</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+
+    <span class="c1"># post-process agent configuration</span>
+    <span class="n">agent_cfg</span> <span class="o">=</span> <span class="n">process_sb3_cfg</span><span class="p">(</span><span class="n">agent_cfg</span><span class="p">,</span> <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
+    <span class="c1"># read configurations about the agent-training</span>
+    <span class="n">policy_arch</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"policy"</span><span class="p">)</span>
+    <span class="n">n_timesteps</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"n_timesteps"</span><span class="p">)</span>
+
+    <span class="c1"># set the IO descriptors export flag if requested</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+        <span class="n">env_cfg</span><span class="o">.</span><span class="n">export_io_descriptors</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">export_io_descriptors</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">"IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."</span>
+        <span class="p">)</span>
+
+    <span class="c1"># set the log directory for the environment (works for all environment types)</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">log_dir</span> <span class="o">=</span> <span class="n">log_dir</span>
+
+    <span class="c1"># create isaac environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="o">=</span><span class="s2">"rgb_array"</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># convert to single-agent instance if required by the RL algorithm</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">DirectMARLEnv</span><span class="p">):</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">multi_agent_to_single_agent</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+
+    <span class="c1"># wrap for video recording</span>
+    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video</span><span class="p">:</span>
+        <span class="n">video_kwargs</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"video_folder"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">"videos"</span><span class="p">,</span> <span class="s2">"train"</span><span class="p">),</span>
+            <span class="s2">"step_trigger"</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">step</span><span class="p">:</span> <span class="n">step</span> <span class="o">%</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_interval</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">"video_length"</span><span class="p">:</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">video_length</span><span class="p">,</span>
+            <span class="s2">"disable_logger"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO] Recording videos during training."</span><span class="p">)</span>
+        <span class="n">print_dict</span><span class="p">(</span><span class="n">video_kwargs</span><span class="p">,</span> <span class="n">nesting</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">wrappers</span><span class="o">.</span><span class="n">RecordVideo</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="o">**</span><span class="n">video_kwargs</span><span class="p">)</span>
+
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="c1"># wrap around environment for stable baselines</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">Sb3VecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">fast_variant</span><span class="o">=</span><span class="ow">not</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">keep_all_info</span><span class="p">)</span>
+
+    <span class="n">norm_keys</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"normalize_input"</span><span class="p">,</span> <span class="s2">"normalize_value"</span><span class="p">,</span> <span class="s2">"clip_obs"</span><span class="p">}</span>
+    <span class="n">norm_args</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">norm_keys</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">agent_cfg</span><span class="p">:</span>
+            <span class="n">norm_args</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">agent_cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">norm_args</span> <span class="ow">and</span> <span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"normalize_input"</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Normalizing input, </span><span class="si">{</span><span class="n">norm_args</span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">VecNormalize</span><span class="p">(</span>
+            <span class="n">env</span><span class="p">,</span>
+            <span class="n">training</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">norm_obs</span><span class="o">=</span><span class="n">norm_args</span><span class="p">[</span><span class="s2">"normalize_input"</span><span class="p">],</span>
+            <span class="n">norm_reward</span><span class="o">=</span><span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"normalize_value"</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+            <span class="n">clip_obs</span><span class="o">=</span><span class="n">norm_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"clip_obs"</span><span class="p">,</span> <span class="mf">100.0</span><span class="p">),</span>
+            <span class="n">gamma</span><span class="o">=</span><span class="n">agent_cfg</span><span class="p">[</span><span class="s2">"gamma"</span><span class="p">],</span>
+            <span class="n">clip_reward</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="c1"># create agent from stable baselines</span>
+    <span class="n">agent</span> <span class="o">=</span> <span class="n">PPO</span><span class="p">(</span><span class="n">policy_arch</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tensorboard_log</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span> <span class="o">**</span><span class="n">agent_cfg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">agent</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">,</span> <span class="n">env</span><span class="p">,</span> <span class="n">print_system_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># callbacks for agent</span>
+    <span class="n">checkpoint_callback</span> <span class="o">=</span> <span class="n">CheckpointCallback</span><span class="p">(</span><span class="n">save_freq</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="n">log_dir</span><span class="p">,</span> <span class="n">name_prefix</span><span class="o">=</span><span class="s2">"model"</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">callbacks</span> <span class="o">=</span> <span class="p">[</span><span class="n">checkpoint_callback</span><span class="p">,</span> <span class="n">LogEveryNTimesteps</span><span class="p">(</span><span class="n">n_steps</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">log_interval</span><span class="p">)]</span>
+
+    <span class="c1"># train the agent</span>
+    <span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">KeyboardInterrupt</span><span class="p">):</span>
+        <span class="n">agent</span><span class="o">.</span><span class="n">learn</span><span class="p">(</span>
+            <span class="n">total_timesteps</span><span class="o">=</span><span class="n">n_timesteps</span><span class="p">,</span>
+            <span class="n">callback</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+            <span class="n">progress_bar</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">log_interval</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="c1"># save the final model</span>
+    <span class="n">agent</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">"model"</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Saving to:"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">"model.zip"</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">VecNormalize</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"Saving normalization"</span><span class="p">)</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="s2">"model_vecnormalize.pkl"</span><span class="p">))</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Training time: </span><span class="si">{</span><span class="nb">round</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start_time</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="si">}</span><span class="s2"> seconds"</span><span class="p">)</span>
+
+    <span class="c1"># close the simulator</span>
+    <span class="n">env</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p>大部分代码用于创建 Log 目录、保存解析后的 Configuration，以及初始化 Stable-Baselines3 组件。本教程的重点是创建 Environment，并使用 Stable-Baselines3 Wrapper 对其进行封装。</p><p>代码使用三个 Wrapper：</p><ol class="arabic simple">
+<li><p><a class="reference external" href="https://gymnasium.farama.org/api/wrappers/misc_wrappers/#gymnasium.wrappers.RecordVideo" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.wrappers.RecordVideo</span></code></a>：此<span class="term">Wrapper</span>录制了<span class="term">Environment</span>的视频
+并保存到指定目录。这对于可视化 <span class="term">Agent</span> 的行为很有用
+训练期间。</p></li>
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">wrappers.sb3.Sb3VecEnvWrapper</span></code>：此 <span class="term">Wrapper</span> 转换为 <span class="term">Environment</span>
+转换为稳定基线 3 兼容的 <span class="term">Environment</span>。</p></li>
+<li><p><a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/guide/vec_envs.html#vecnormalize">stable_baselines3.common.vec_env.VecNormalize</a>：此 <span class="term">Wrapper</span> 标准化
+<span class="term">Environment</span> 的 <span class="term">Observations</span> 和 <span class="term">Rewards</span>。</p></li>
+</ol>
+<p>每个 <code>gym</code> Wrapper 都以 <code class="docutils literal notranslate"><span class="pre">env</span> <span class="pre">=</span> <span class="pre">wrapper(env,</span> <span class="pre">*args,</span> <span class="pre">**kwargs)</span></code> 的形式逐层封装前一层。最终得到的 Environment 用于训练 Agent。更多说明请参阅“包装 Environment”文档。</p></section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>我们从 Stable-Baselines3 训练 PPO <span class="term">Agent</span> 来解决 <span class="term">Cartpole</span> 平衡问题 <span class="term">Task</span>。</p>
+<section>
+<h3 id="training-the-agent"><span class="heading-number">3.1</span> 训练 <span class="term">Agent</span></h3>
+<p>训练 <span class="term">Agent</span> 的主要方法有3种。他们每个人都有自己的优点和缺点。
+您可以根据您的 <span class="term">Use Case</span> 来决定您更喜欢哪一个。</p>
+<section>
+<h4 id="headless-execution"><span class="heading-number">3.1.1</span> Headless 模式</h4><p>传入 <code class="docutils literal notranslate"><span class="pre">--headless</span></code> 后，训练期间不进行 Rendering。这适用于远程服务器，也能避免只为观察画面而产生的开销；由于只执行 Physics Simulation Step，训练通常会更快。</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--headless
+</pre></div>
+</div>
+</section>
+<section>
+<h4 id="headless-execution-with-off-screen-render"><span class="heading-number">3.1.2</span> Headless 模式与 Off-Screen Rendering</h4><p>纯 Headless 模式不进行 Rendering，无法记录 Agent 的训练画面。传入 <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> 可启用 Off-Screen Rendering，再配合 <code class="docutils literal notranslate"><span class="pre">--video</span></code> 录制训练过程。</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--headless<span class="w"> </span>--video
+</pre></div>
+</div>
+<p>视频保存在 <code>logs/sb3/Isaac-Cartpole-v0/&lt;run-dir&gt;/videos/train</code>，可使用任意视频播放器打开。</p></section>
+<section>
+<h4 id="interactive-execution"><span class="heading-number">3.1.3</span> 交互式执行</h4>
+<p>上述两种方式适合训练，但无法直接与画面交互。若要观察实时 Simulation，可省略 <code class="docutils literal notranslate"><span class="pre">--headless</span></code>，并按如下方式运行训练 Script：</p><div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span>
+</pre></div>
+</div>
+<p>Isaac Sim 窗口会显示 Agent 在 Environment 中训练。实时 Rendering 会降低训练速度，可以使用屏幕右下角 <code class="docutils literal notranslate"><span class="pre">"Isaac</span> <span class="pre">Lab"</span></code> 面板切换 Render Mode。有关各模式的说明，请参阅 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.html#isaaclab.sim.SimulationContext.RenderMode" title="isaaclab.sim.SimulationContext.RenderMode"><code class="xref py py-class docutils literal notranslate"><span class="pre">sim.SimulationContext.RenderMode</span></code></a>。</p></section>
+</section>
+<section>
+<h3 id="viewing-the-logs"><span class="heading-number">3.2</span> 查看日志</h3>
+<p>在单独的<span class="term">Terminal</span>上，可以通过执行以下<span class="term">Command</span>来监控训练进度：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="c1"># execute from the root directory of the repository</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>tensorboard.main<span class="w"> </span>--logdir<span class="w"> </span>logs/sb3/Isaac-Cartpole-v0
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="playing-the-trained-agent"><span class="heading-number">3.3</span> 运行训练好的 Agent</h3><p>训练完成后，您可以通过执行以下 <span class="term">Command</span> 来可视化训练后的 <span class="term">Agent</span>：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="c1"># execute from the root directory of the repository</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--use_last_checkpoint
+</pre></div>
+</div>
+<p>上面的 <span class="term">Command</span> 将从以下位置加载最新的检查点 <code class="docutils literal notranslate"><span class="pre">logs/sb3/Isaac-Cartpole-v0</span></code>
+目录。您还可以通过传递指定特定的检查点 <code class="docutils literal notranslate"><span class="pre">--checkpoint</span></code> <span class="term">Flag</span>。</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="register_rl_env_gym.html">← 上一篇：注册 Environment</a>
+        <a href="configuring_rl_training.html">下一篇：配置 RL Agent →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/03_envs/run_rl_training.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#the-code-execution">3 代码执行</a><a href="#training-the-agent" class="toc-level-2">3.1 训练 Agent</a><a href="#headless-execution" class="toc-level-3">3.1.1 Headless 模式</a><a href="#headless-execution-with-off-screen-render" class="toc-level-3">3.1.2 Headless 模式与 Off-Screen Rendering</a><a href="#interactive-execution" class="toc-level-3">3.1.3 交互式执行</a><a href="#viewing-the-logs" class="toc-level-2">3.2 查看日志</a><a href="#playing-the-trained-agent" class="toc-level-2">3.3 运行训练好的 Agent</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>与 Surface Gripper 交互 — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="run_deformable_object.html">与 Deformable Object 交互</a>
+      <a class="active" data-search-item href="run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 与 Surface Gripper 交互</h1>
+      <article class="bd-article">
+                  
+  <section id="interacting-with-a-surface-gripper">
+<span id="tutorial-interact-surface-gripper"></span>
+<p>本教程介绍如何操作末端执行器装有 <span class="term">Surface Gripper</span> 的 Articulation Robot。内容建立在上一节 Articulation 操作的基础上。请注意，从 Isaac Sim 5.0 开始，Surface Gripper Backend 仅支持 CPU。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>run_surface_gripper.py</code>，位于 <code>scripts/tutorials/01_assets</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">run_surface_gripper.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""This script demonstrates how to spawn a pick-and-place robot equipped with a surface gripper and interact with it.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Usage</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device=cpu</span>
+
+<span class="sd">When running this script make sure the --device flag is set to cpu. This is because the surface gripper is</span>
+<span class="sd">currently only supported on the CPU.</span>
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on spawning and interacting with a Surface Gripper."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">SurfaceGripper</span><span class="p">,</span> <span class="n">SurfaceGripperCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span>
+
+<span class="c1">##</span>
+<span class="c1"># Pre-defined configs</span>
+<span class="c1">##</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">PICK_AND_PLACE_CFG</span>  <span class="c1"># isort:skip</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">design_scene</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Designs the scene."""</span>
+    <span class="c1"># Ground-plane</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+    <span class="c1"># Lights</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+
+    <span class="c1"># Create separate groups called "Origin1", "Origin2"</span>
+    <span class="c1"># Each group will have a robot in it</span>
+    <span class="n">origins</span> <span class="o">=</span> <span class="p">[[</span><span class="mf">2.75</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.75</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
+    <span class="c1"># Origin 1</span>
+<span class="hll">    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Origin1"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span><span class="hll">    <span class="c1"># Origin 2</span>
+</span><span class="hll">    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Origin2"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># Articulation: First we define the robot config</span>
+</span><span class="hll">    <span class="n">pick_and_place_robot_cfg</span> <span class="o">=</span> <span class="n">PICK_AND_PLACE_CFG</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+</span><span class="hll">    <span class="n">pick_and_place_robot_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">"/World/Origin.*/Robot"</span>
+</span><span class="hll">    <span class="n">pick_and_place_robot</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">pick_and_place_robot_cfg</span><span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># Surface Gripper: Next we define the surface gripper config</span>
+</span><span class="hll">    <span class="n">surface_gripper_cfg</span> <span class="o">=</span> <span class="n">SurfaceGripperCfg</span><span class="p">()</span>
+</span><span class="hll">    <span class="c1"># We need to tell the View which prim to use for the surface gripper</span>
+</span><span class="hll">    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">"/World/Origin.*/Robot/picker_head/SurfaceGripper"</span>
+</span><span class="hll">    <span class="c1"># We can then set different parameters for the surface gripper, note that if these parameters are not set,</span>
+</span><span class="hll">    <span class="c1"># the View will try to read them from the prim.</span>
+</span><span class="hll">    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">max_grip_distance</span> <span class="o">=</span> <span class="mf">0.1</span>  <span class="c1"># [m] (Maximum distance at which the gripper can grasp an object)</span>
+</span><span class="hll">    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">shear_force_limit</span> <span class="o">=</span> <span class="mf">500.0</span>  <span class="c1"># [N] (Force limit in the direction perpendicular direction)</span>
+</span><span class="hll">    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">coaxial_force_limit</span> <span class="o">=</span> <span class="mf">500.0</span>  <span class="c1"># [N] (Force limit in the direction of the gripper's axis)</span>
+</span><span class="hll">    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">retry_interval</span> <span class="o">=</span> <span class="mf">0.1</span>  <span class="c1"># seconds (Time the gripper will stay in a grasping state)</span>
+</span><span class="hll">    <span class="c1"># We can now spawn the surface gripper</span>
+</span><span class="hll">    <span class="n">surface_gripper</span> <span class="o">=</span> <span class="n">SurfaceGripper</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">surface_gripper_cfg</span><span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># return the scene information</span>
+</span><span class="hll">    <span class="n">scene_entities</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"pick_and_place_robot"</span><span class="p">:</span> <span class="n">pick_and_place_robot</span><span class="p">,</span> <span class="s2">"surface_gripper"</span><span class="p">:</span> <span class="n">surface_gripper</span><span class="p">}</span>
+</span><span class="hll">    <span class="k">return</span> <span class="n">scene_entities</span><span class="p">,</span> <span class="n">origins</span>
+</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span>
+    <span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">entities</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Articulation</span> <span class="o">|</span> <span class="n">SurfaceGripper</span><span class="p">],</span> <span class="n">origins</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Runs the simulation loop."""</span>
+    <span class="c1"># Extract scene entities</span>
+    <span class="n">robot</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">entities</span><span class="p">[</span><span class="s2">"pick_and_place_robot"</span><span class="p">]</span>
+    <span class="n">surface_gripper</span><span class="p">:</span> <span class="n">SurfaceGripper</span> <span class="o">=</span> <span class="n">entities</span><span class="p">[</span><span class="s2">"surface_gripper"</span><span class="p">]</span>
+
+    <span class="c1"># Define simulation stepping</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># Simulation loop</span>
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># Reset</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># reset counter</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># reset the scene entities</span>
+            <span class="c1"># root state</span>
+            <span class="c1"># we offset the root state by the origin since the states are written in simulation world frame</span>
+            <span class="c1"># if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world</span>
+            <span class="n">root_state</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">origins</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+            <span class="c1"># set joint positions with some noise</span>
+            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span> <span class="n">robot</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">joint_pos</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.1</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+            <span class="c1"># clear internal buffers</span>
+            <span class="n">robot</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting robot state..."</span><span class="p">)</span>
+            <span class="c1"># Opens the gripper and makes sure the gripper is in the open state</span>
+            <span class="n">surface_gripper</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting gripper state..."</span><span class="p">)</span>
+
+<span class="hll">        <span class="c1"># Sample a random command between -1 and 1.</span>
+</span><span class="hll">        <span class="n">gripper_commands</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">surface_gripper</span><span class="o">.</span><span class="n">num_instances</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span> <span class="o">-</span> <span class="mf">1.0</span>
+</span>        <span class="c1"># The gripper behavior is as follows:</span>
+        <span class="c1"># -1 &lt; command &lt; -0.3 --&gt; Gripper is Opening</span>
+<span class="hll">        <span class="c1"># -0.3 &lt; command &lt; 0.3 --&gt; Gripper is Idle</span>
+</span><span class="hll">        <span class="c1"># 0.3 &lt; command &lt; 1 --&gt; Gripper is Closing</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO]: Gripper commands: </span><span class="si">{</span><span class="n">gripper_commands</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span class="hll">        <span class="n">mapped_commands</span> <span class="o">=</span> <span class="p">[</span>
+</span><span class="hll">            <span class="s2">"Opening"</span> <span class="k">if</span> <span class="n">command</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.3</span> <span class="k">else</span> <span class="s2">"Closing"</span> <span class="k">if</span> <span class="n">command</span> <span class="o">&gt;</span> <span class="mf">0.3</span> <span class="k">else</span> <span class="s2">"Idle"</span> <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="n">gripper_commands</span>
+</span><span class="hll">        <span class="p">]</span>
+</span><span class="hll">        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO]: Mapped commands: </span><span class="si">{</span><span class="n">mapped_commands</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span class="hll">        <span class="c1"># Set the gripper command</span>
+</span><span class="hll">        <span class="n">surface_gripper</span><span class="o">.</span><span class="n">set_grippers_command</span><span class="p">(</span><span class="n">gripper_commands</span><span class="p">)</span>
+</span><span class="hll">        <span class="c1"># Write data to sim</span>
+</span><span class="hll">        <span class="n">surface_gripper</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+</span><span class="hll">        <span class="c1"># Perform step</span>
+</span><span class="hll">        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</span><span class="hll">        <span class="c1"># Increment counter</span>
+</span><span class="hll">        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+</span>        <span class="c1"># Read the gripper state from the simulation</span>
+        <span class="n">surface_gripper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+        <span class="c1"># Read the gripper state from the buffer</span>
+        <span class="n">surface_gripper_state</span> <span class="o">=</span> <span class="n">surface_gripper</span><span class="o">.</span><span class="n">state</span>
+<span class="hll">        <span class="c1"># The gripper state is a list of integers that can be mapped to the following:</span>
+</span><span class="hll">        <span class="c1"># -1 --&gt; Open</span>
+</span><span class="hll">        <span class="c1"># 0 --&gt; Closing</span>
+</span><span class="hll">        <span class="c1"># 1 --&gt; Closed</span>
+</span>        <span class="c1"># Print the gripper state</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO]: Gripper state: </span><span class="si">{</span><span class="n">surface_gripper_state</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">mapped_commands</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">"Open"</span> <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span> <span class="k">else</span> <span class="s2">"Closing"</span> <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">"Closed"</span> <span class="k">for</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">surface_gripper_state</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="p">]</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO]: Mapped commands: </span><span class="si">{</span><span class="n">mapped_commands</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># Load kit helper</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="c1"># Set main camera</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.75</span><span class="p">,</span> <span class="mf">7.5</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">2.75</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+    <span class="c1"># Design scene</span>
+    <span class="n">scene_entities</span><span class="p">,</span> <span class="n">scene_origins</span> <span class="o">=</span> <span class="n">design_scene</span><span class="p">()</span>
+    <span class="n">scene_origins</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">scene_origins</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="c1"># Play the simulator</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># Now we are ready!</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+    <span class="c1"># Run the simulator</span>
+    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene_entities</span><span class="p">,</span> <span class="n">scene_origins</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="c1"># run the main function</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="c1"># close sim app</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><section>
+<h3 id="designing-the-scene"><span class="heading-number">2.1</span> 设计 <span class="term">Scene</span></h3>
+<p>与前面的教程一样，Scene 中包含 Ground Plane 和 Distant Light。本例从 USD 文件生成一台三轴 Pick-and-Place Robot：龙门机构可沿 x、y、z 三个方向移动，末端执行器装有 Surface Gripper。USD 文件包含 Robot 的几何体、关节、物理属性和 Surface Gripper。若要为自己的 Robot 添加类似 Gripper，建议先查看 Isaac Lab Nucleus 中该 Asset 的 USD 文件。</p><p>Robot 使用预定义的 Configuration Object；Surface Gripper 则需要创建 <code class="xref py py-class docutils literal notranslate"><span class="pre">assets.SurfaceGripperCfg</span></code>，并传入相应参数。</p><p>可用参数如下：</p><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">max_grip_distance</span></code>：机械手可以抓取 <span class="term">Object</span> 的最大距离。</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">shear_force_limit</span></code>：夹具可以在垂直于夹具轴线的方向上施加的最大力。</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">coaxial_force_limit</span></code>：夹具可以在夹具轴线方向上施加的最大力。</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">retry_interval</span></code>：机械手保持抓取状态的时间。</p></li>
+</ul>
+<p>将 Robot Configuration 传给 <a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.assets.html#isaaclab.assets.Articulation" title="isaaclab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a> 构造函数即可创建 Articulation；Surface Gripper 的创建方式相同，将配置传给 <code class="xref py py-class docutils literal notranslate"><span class="pre">assets.SurfaceGripper</span></code> 构造函数后即可加入 Scene。实际初始化会在按下 Play、Simulation 开始运行时完成。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>    <span class="c1"># Create separate groups called "Origin1", "Origin2"</span>
+    <span class="c1"># Each group will have a robot in it</span>
+    <span class="n">origins</span> <span class="o">=</span> <span class="p">[[</span><span class="mf">2.75</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.75</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]</span>
+    <span class="c1"># Origin 1</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Origin1"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="c1"># Origin 2</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">"/World/Origin2"</span><span class="p">,</span> <span class="s2">"Xform"</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="n">origins</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c1"># Articulation: First we define the robot config</span>
+    <span class="n">pick_and_place_robot_cfg</span> <span class="o">=</span> <span class="n">PICK_AND_PLACE_CFG</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">pick_and_place_robot_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">"/World/Origin.*/Robot"</span>
+    <span class="n">pick_and_place_robot</span> <span class="o">=</span> <span class="n">Articulation</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">pick_and_place_robot_cfg</span><span class="p">)</span>
+
+    <span class="c1"># Surface Gripper: Next we define the surface gripper config</span>
+    <span class="n">surface_gripper_cfg</span> <span class="o">=</span> <span class="n">SurfaceGripperCfg</span><span class="p">()</span>
+    <span class="c1"># We need to tell the View which prim to use for the surface gripper</span>
+    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">=</span> <span class="s2">"/World/Origin.*/Robot/picker_head/SurfaceGripper"</span>
+    <span class="c1"># We can then set different parameters for the surface gripper, note that if these parameters are not set,</span>
+    <span class="c1"># the View will try to read them from the prim.</span>
+    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">max_grip_distance</span> <span class="o">=</span> <span class="mf">0.1</span>  <span class="c1"># [m] (Maximum distance at which the gripper can grasp an object)</span>
+    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">shear_force_limit</span> <span class="o">=</span> <span class="mf">500.0</span>  <span class="c1"># [N] (Force limit in the direction perpendicular direction)</span>
+    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">coaxial_force_limit</span> <span class="o">=</span> <span class="mf">500.0</span>  <span class="c1"># [N] (Force limit in the direction of the gripper's axis)</span>
+    <span class="n">surface_gripper_cfg</span><span class="o">.</span><span class="n">retry_interval</span> <span class="o">=</span> <span class="mf">0.1</span>  <span class="c1"># seconds (Time the gripper will stay in a grasping state)</span>
+    <span class="c1"># We can now spawn the surface gripper</span>
+    <span class="n">surface_gripper</span> <span class="o">=</span> <span class="n">SurfaceGripper</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">surface_gripper_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h3 id="running-the-simulation-loop"><span class="heading-number">2.2</span> 运行 <span class="term">Simulation Loop</span></h3>
+<p>Simulation Loop 会定期重置 Simulation，向 Articulation 和 Surface Gripper 设置 Command，推进 Simulation，并更新内部 Buffer。</p><section>
+<h4 id="resetting-the-simulation"><span class="heading-number">2.2.1</span> 重置 Simulation</h4><p>重置 Surface Gripper 时，只需调用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">SurfaceGripper.reset()</span></code> 清空内部 Buffer 和缓存。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>            <span class="c1"># Opens the gripper and makes sure the gripper is in the open state</span>
+            <span class="n">surface_gripper</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h4 id="stepping-the-simulation"><span class="heading-number">2.2.2</span> 步进 <span class="term">Simulation</span></h4>
+<p>向 Surface Gripper 应用 Command 分为两个步骤：</p><ol class="arabic simple">
+<li><p><em>设置所需的 <span class="term">Commands</span></em>：设置所需的夹具 <span class="term">Commands</span>（打开、关闭或空闲）。</p></li>
+<li><p><em>将数据写入<span class="term">Simulation</span></em>：基于 <span class="term">Surface Gripper</span> 的 <span class="term">Configuration</span>，此 <span class="term">Step</span> 处理写入
+将值转换为 <span class="term">PhysX</span> <span class="term">Buffer</span>。</p></li>
+</ol>
+<p>本教程使用随机 Command 控制 Gripper，其行为如下：</p><ul class="simple">
+<li><p>-1 &lt; <span class="term">Command</span> &lt; -0.3 –&gt; 夹具正在打开</p></li>
+<li><p>-0.3 &lt; <span class="term">Command</span> &lt; 0.3 –&gt; 夹具空闲</p></li>
+<li><p>0.3 &lt; <span class="term">Command</span> &lt; 1 –&gt; 夹具正在关闭</p></li>
+</ul>
+<p>每个 Step 随机采样 Command，并通过 <code class="xref py py-meth docutils literal notranslate"><span class="pre">SurfaceGripper.set_grippers_command()</span></code> 发送给 Gripper。设置目标后，调用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">SurfaceGripper.write_data_to_sim()</span></code> 将数据写入 PhysX Buffer，最后推进 Simulation。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>        <span class="c1"># Sample a random command between -1 and 1.</span>
+        <span class="n">gripper_commands</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">surface_gripper</span><span class="o">.</span><span class="n">num_instances</span><span class="p">)</span> <span class="o">*</span> <span class="mf">2.0</span> <span class="o">-</span> <span class="mf">1.0</span>
+        <span class="c1"># The gripper behavior is as follows:</span>
+        <span class="c1"># -1 &lt; command &lt; -0.3 --&gt; Gripper is Opening</span>
+        <span class="c1"># -0.3 &lt; command &lt; 0.3 --&gt; Gripper is Idle</span>
+        <span class="c1"># 0.3 &lt; command &lt; 1 --&gt; Gripper is Closing</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO]: Gripper commands: </span><span class="si">{</span><span class="n">gripper_commands</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">mapped_commands</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">"Opening"</span> <span class="k">if</span> <span class="n">command</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.3</span> <span class="k">else</span> <span class="s2">"Closing"</span> <span class="k">if</span> <span class="n">command</span> <span class="o">&gt;</span> <span class="mf">0.3</span> <span class="k">else</span> <span class="s2">"Idle"</span> <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="n">gripper_commands</span>
+        <span class="p">]</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[INFO]: Mapped commands: </span><span class="si">{</span><span class="n">mapped_commands</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="c1"># Set the gripper command</span>
+        <span class="n">surface_gripper</span><span class="o">.</span><span class="n">set_grippers_command</span><span class="p">(</span><span class="n">gripper_commands</span><span class="p">)</span>
+        <span class="c1"># Write data to sim</span>
+        <span class="n">surface_gripper</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section>
+<h4 id="updating-the-state"><span class="heading-number">2.2.3</span> 更新状态</h4>
+<p>可以通过 <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.SurfaceGripper.state()</span></code> Property 查询当前状态。它返回形状为 <code class="docutils literal notranslate"><span class="pre">[num_envs]</span></code> 的 Tensor，每个元素为 <code class="docutils literal notranslate"><span class="pre">-1</span></code>、<code class="docutils literal notranslate"><span class="pre">0</span></code> 或 <code class="docutils literal notranslate"><span class="pre">1</span></code>，分别表示对应 Gripper 的状态。每次调用 <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.SurfaceGripper.update()</span></code> 时都会更新该 Property。</p><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">-1</span></code> –&gt; 夹具打开</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code> –&gt; 夹具正在关闭</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span></code> –&gt; 夹具已关闭</p></li>
+</ul>
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span>        <span class="c1"># Read the gripper state from the simulation</span>
+        <span class="n">surface_gripper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+        <span class="c1"># Read the gripper state from the buffer</span>
+        <span class="n">surface_gripper_state</span> <span class="o">=</span> <span class="n">surface_gripper</span><span class="o">.</span><span class="n">state</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">3</span> 代码执行</h2>
+<p>要运行代码并查看结果，让我们从 <span class="term">Terminal</span> 运行 <span class="term">Script</span>：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/01_assets/run_surface_gripper.py<span class="w"> </span>--device<span class="w"> </span>cpu
+</pre></div>
+</div>
+<p>此 <span class="term">Command</span> 应打开一个带有接<span class="term">Ground Plane</span>、灯和两个拾放 <span class="term">Robots</span> 的 <span class="term">Stage</span>。
+在 <span class="term">Terminal</span> 中，您应该看到夹具状态和正在打印的 <span class="term">Command</span>。
+要停止 <span class="term">Simulation</span>，您可以关闭窗口，或按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 在 <span class="term">Terminal</span> 中。</p>
+<figure class="align-center" style="width: 100%">
+<img alt="result of run_surface_gripper.py" src="../../assets/tutorial_run_surface_gripper.jpg" class="tutorial-image">
+</figure>
+<p>在本教程中，我们学习了如何创建 <span class="term">Surface Gripper</span> 并与之交互。我们看到了如何设置 <span class="term">Commands</span> 和
+查询夹具状态。我们还了解了如何更新其 <span class="term">Buffers</span> 以从 <span class="term">Simulation</span> 读取最新状态。</p>
+<p>除了本教程之外，我们还提供了其他几个<span class="term">Scripts</span>，即<span class="term">Spawn</span>与<span class="term">Robots</span>不同。这些都包括在内
+在 <code class="docutils literal notranslate"><span class="pre">scripts/demos</span></code> 目录。您可以将这些 <span class="term">Scripts</span> 运行为：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span><span class="c1"># Spawn many pick-and-place robots and perform a pick-and-place task</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/demos/pick_and_place.py
+</pre></div>
+</div>
+<p>请注意，实际上，用户需要注册他们的 <code class="xref py py-class docutils literal notranslate"><span class="pre">assets.SurfaceGripper</span></code> 里面的实例
+一个 <code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.InteractiveScene</span></code> <span class="term">Object</span>，它将自动处理对
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.SurfaceGripper.write_data_to_sim()</span></code> 和 <code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.SurfaceGripper.update()</span></code> <span class="term">Methods</span>。</p>
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Create a scene</span>
+<span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">()</span>
+
+<span class="c1"># Register the surface gripper</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">surface_grippers</span><span class="p">[</span><span class="s2">"gripper"</span><span class="p">]</span> <span class="o">=</span> <span class="n">surface_gripper</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="run_deformable_object.html">← 上一篇：与 Deformable Object 交互</a>
+        <a href="../02_scene/create_scene.html">下一篇：使用 Interactive Scene →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/01_assets/run_surface_gripper.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a><a href="#designing-the-scene" class="toc-level-2">2.1 设计 Scene</a><a href="#running-the-simulation-loop" class="toc-level-2">2.2 运行 Simulation Loop</a><a href="#resetting-the-simulation" class="toc-level-3">2.2.1 重置 Simulation</a><a href="#stepping-the-simulation" class="toc-level-3">2.2.2 步进 Simulation</a><a href="#updating-the-state" class="toc-level-3">2.2.3 更新状态</a><a href="#the-code-execution">3 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

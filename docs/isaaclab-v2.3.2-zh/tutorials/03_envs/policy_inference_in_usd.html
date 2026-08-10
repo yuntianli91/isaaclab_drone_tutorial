@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>USD Environment 中的 Policy Inference — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a data-search-item href="../01_assets/add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="../01_assets/run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="../01_assets/run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="../01_assets/run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="../01_assets/run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a class="active" data-search-item href="policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> USD Environment 中的 Policy Inference</h1>
+      <article class="bd-article">
+                  
+  <section id="policy-inference-in-usd-environment">
+<span id="tutorial-policy-inference-in-usd"></span>
+<p>上一节介绍了如何修改现有 Direct RL Environment。本教程将进一步说明如何在预先构建的 USD Scene 中运行已经训练好的 Policy。</p><p>示例使用 RSL-RL 为 <code class="docutils literal notranslate"><span class="pre">Isaac-Velocity-Rough-H1-v0</span></code> Task 训练的 H1 Rough Terrain Policy，并在一个简化的仓库 USD Scene 中执行推理。</p><section>
+<h2 id="the-tutorial-code"><span class="heading-number">1</span> 教程代码</h2>
+<p>本教程使用由已训练 Policy Checkpoint 导出的 JIT 文件，即可脱离训练流程运行的 Policy 版本。</p><p><code class="docutils literal notranslate"><span class="pre">H1RoughEnvCfg_PLAY</span></code> 封装 Policy Inference 所需的 Environment Configuration，包括要实例化的 Asset。</p><p>为了使用预先构建的 USD Environment，而不是 Configuration 中的 Terrain Generator，需要在把 Config 传给 <code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> 前进行以下修改。</p><details class="code-details">
+<summary>代码 <span class="term">policy_inference_in_usd.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">"""</span>
+<span class="sd">This script demonstrates policy inference in a prebuilt USD environment.</span>
+
+<span class="sd">In this example, we use a locomotion policy to control the H1 robot. The robot was trained</span>
+<span class="sd">using Isaac-Velocity-Rough-H1-v0. The robot is commanded to move forward at a constant velocity.</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    # Run the script</span>
+<span class="sd">    ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint /path/to/jit/checkpoint.pt</span>
+
+<span class="sd">"""</span>
+
+<span class="sd">"""Launch Isaac Sim Simulator first."""</span>
+
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Tutorial on inferencing a policy on an H1 robot in a warehouse."</span><span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--checkpoint"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Path to model checkpoint exported as jit."</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="sd">"""Rest everything follows."""</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">omni</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnv</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.terrains</span><span class="w"> </span><span class="kn">import</span> <span class="n">TerrainImporterCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">H1RoughEnvCfg_PLAY</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># load the trained jit policy</span>
+    <span class="n">policy_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">checkpoint</span><span class="p">)</span>
+    <span class="n">file_content</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">policy_path</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">file</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="nb">memoryview</span><span class="p">(</span><span class="n">file_content</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>
+<span class="hll">    <span class="n">policy</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+</span><span class="hll">
+</span><span class="hll">    <span class="c1"># setup environment</span>
+</span><span class="hll">    <span class="n">env_cfg</span> <span class="o">=</span> <span class="n">H1RoughEnvCfg_PLAY</span><span class="p">()</span>
+</span><span class="hll">    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">=</span> <span class="mi">1</span>
+</span><span class="hll">    <span class="n">env_cfg</span><span class="o">.</span><span class="n">curriculum</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span class="hll">    <span class="n">env_cfg</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span> <span class="o">=</span> <span class="n">TerrainImporterCfg</span><span class="p">(</span>
+</span><span class="hll">        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/ground"</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">terrain_type</span><span class="o">=</span><span class="s2">"usd"</span><span class="p">,</span>
+</span><span class="hll">        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Environments/Simple_Warehouse/warehouse.usd"</span><span class="p">,</span>
+</span>    <span class="p">)</span>
+    <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span>
+    <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">device</span> <span class="o">==</span> <span class="s2">"cpu"</span><span class="p">:</span>
+        <span class="n">env_cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">use_fabric</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># create environment</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">)</span>
+
+    <span class="c1"># run inference with the policy</span>
+    <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+        <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="n">policy</span><span class="p">(</span><span class="n">obs</span><span class="p">[</span><span class="s2">"policy"</span><span class="p">])</span>
+            <span class="n">obs</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details><p>示例把 Device 设为 <code class="docutils literal notranslate"><span class="pre">CPU</span></code>，并在推理时关闭 Fabric。对于少量 Environment，CPU Simulation 通常比 GPU Simulation 更快。</p></section>
+<section>
+<h2 id="the-code-execution"><span class="heading-number">2</span> 代码执行</h2>
+<p>首先，我们需要训练 <code class="docutils literal notranslate"><span class="pre">Isaac-Velocity-Rough-H1-v0</span></code> <span class="term">Task</span> 通过运行以下命令：</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Rough-H1-v0<span class="w"> </span>--headless
+</pre></div>
+</div>
+<p>训练完成后，我们可以使用以下 <span class="term">Command</span> 可视化结果。
+要停止 <span class="term">Simulation</span>，您可以关闭窗口，或按 <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> 在<span class="term">Terminal</span>中
+您开始 <span class="term">Simulation</span> 的位置。</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/reinforcement_learning/rsl_rl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Rough-H1-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">64</span><span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt
+</pre></div>
+</div>
+<p>运行<span class="term">Play</span> <span class="term">Script</span>后，<span class="term">Policy</span>将导出到实验日志目录下的<span class="term">JIT</span>和onnx文件中。
+请注意，并非所有学习库都支持将 <span class="term">Policy</span> 导出到 <span class="term">JIT</span> 或 onnx 文件。
+对于目前不支持该功能的库，请参考相应的 <code class="docutils literal notranslate"><span class="pre">play.py</span></code> <span class="term">Script</span> Library
+了解如何初始化 <span class="term">Policy</span>。</p>
+<p>然后，我们可以加载仓库 <span class="term">Asset</span> 并使用导出的 <span class="term">JIT</span> <span class="term">Policy</span> 在 H1 <span class="term">Robot</span> 上运行推理
+（<code class="docutils literal notranslate"><span class="pre">policy.pt</span></code> 文件在 <code class="docutils literal notranslate"><span class="pre">exported/</span></code> 目录）。</p>
+<div class="code-block" data-language="Bash"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/tutorials/03_envs/policy_inference_in_usd.py<span class="w"> </span>--checkpoint<span class="w"> </span>logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt
+</pre></div>
+</div>
+<figure class="align-center" style="width: 100%">
+<img alt="result of training Isaac-H1-Direct-v0 task" src="../../assets/tutorial_policy_inference_in_usd.jpg" class="tutorial-image">
+</figure>
+<p>在本教程中，我们学习了如何对现有的 <span class="term">Environment</span> <span class="term">Config</span> 进行细微修改，以在预构建的 <span class="term">USD</span> <span class="term">Environment</span> 中运行 <span class="term">Policy Inference</span>。</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="modify_direct_rl_env.html">← 上一篇：修改现有 Direct RL Environment</a>
+        <a href="../04_sensors/add_sensors_on_robot.html">下一篇：在 Robot 上添加 Sensors →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/03_envs/policy_inference_in_usd.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-tutorial-code">1 教程代码</a><a href="#the-code-execution">2 代码执行</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

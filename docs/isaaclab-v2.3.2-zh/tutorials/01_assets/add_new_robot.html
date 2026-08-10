@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>向 Isaac Lab 添加新 Robot — Isaac Lab v2.3.2 中文文档</title>
+  <link rel="stylesheet" href="../../assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">
+      <span class="brand-mark"></span>Isaac Lab 中文文档
+    </a>
+    <span class="version">v2.3.2</span>
+    <input class="search" data-search type="search" placeholder="搜索教程目录……" aria-label="搜索教程目录">
+    <button class="icon-button" data-theme-toggle type="button">明暗</button>
+    <button class="icon-button menu-button" data-menu-toggle type="button">目录</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar" aria-label="教程导航">
+      <a class="sidebar-root" data-search-item href="../../index.html">IsaacLab Tutorial</a>
+      <div class="sidebar-title">设置简单仿真</div>
+      <a data-search-item href="../00_sim/create_empty.html">创建空场景</a>
+      <a data-search-item href="../00_sim/spawn_prims.html">在 Scene 中生成 Prim</a>
+      <a data-search-item href="../00_sim/launch_app.html">深入了解 AppLauncher</a>
+      <div class="sidebar-title">与 Assets 交互</div>
+      <a class="active" data-search-item href="add_new_robot.html">向 Isaac Lab 添加新 Robot</a>
+      <a data-search-item href="run_rigid_object.html">与 Rigid Object 交互</a>
+      <a data-search-item href="run_articulation.html">与 Articulation 交互</a>
+      <a data-search-item href="run_deformable_object.html">与 Deformable Object 交互</a>
+      <a data-search-item href="run_surface_gripper.html">与 Surface Gripper 交互</a>
+      <div class="sidebar-title">创建 Scene</div>
+      <a data-search-item href="../02_scene/create_scene.html">使用 Interactive Scene</a>
+      <div class="sidebar-title">设计 Environment</div>
+      <a data-search-item href="../03_envs/create_manager_base_env.html">创建 Manager-Based Base Environment</a>
+      <a data-search-item href="../03_envs/create_manager_rl_env.html">创建 Manager-Based RL Environment</a>
+      <a data-search-item href="../03_envs/create_direct_rl_env.html">创建 Direct Workflow RL Environment</a>
+      <a data-search-item href="../03_envs/register_rl_env_gym.html">注册 Environment</a>
+      <a data-search-item href="../03_envs/run_rl_training.html">使用 RL Agent 训练</a>
+      <a data-search-item href="../03_envs/configuring_rl_training.html">配置 RL Agent</a>
+      <a data-search-item href="../03_envs/modify_direct_rl_env.html">修改现有 Direct RL Environment</a>
+      <a data-search-item href="../03_envs/policy_inference_in_usd.html">USD Environment 中的 Policy Inference</a>
+      <div class="sidebar-title">集成 Sensors</div>
+      <a data-search-item href="../04_sensors/add_sensors_on_robot.html">在 Robot 上添加 Sensors</a>
+      <div class="sidebar-title">使用 Motion Generators</div>
+      <a data-search-item href="../05_controllers/run_diff_ik.html">使用 Task-Space Controller</a>
+      <a data-search-item href="../05_controllers/run_osc.html">使用 Operational Space Controller</a>
+    </nav>
+    <main class="content">
+      
+      <h1> 向 Isaac Lab 添加新 Robot</h1>
+      <article class="bd-article">
+                  
+  <section id="adding-a-new-robot-to-isaac-lab">
+<span id="tutorial-add-new-robot"></span>
+<p>在 Isaac Lab 中仿真和训练新的 <span class="term">Robot</span> 通常包括多个步骤。首先需要将 Robot 导入 Isaac Sim，并根据仿真需求检查模型。之后还需定义统一接口，以便复制多个 Robot、驱动关节，并在不同 Workflow 或训练 Framework 中正确执行 Reset。</p><p>本教程说明如何向 Isaac Lab 添加新的 <span class="term">Robot</span>。关键工作是创建 <code>AssetBaseCfg</code>，用它连接 USD 中的 Articulation 与 Isaac Lab 提供的控制及学习接口。</p><section>
+<h2 id="the-code"><span class="heading-number">1</span> 代码</h2>
+<p>本教程对应 <code>add_new_robot</code>，位于 <code>scripts/tutorials/01_assets</code> 目录。</p><details class="code-details">
+<summary>代码 <span class="term">add_new_robot.py</span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppLauncher</span>
+
+<span class="c1"># add argparse arguments</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">"This script demonstrates adding a custom robot to an Isaac Lab environment."</span>
+<span class="p">)</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--num_envs"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Number of environments to spawn."</span><span class="p">)</span>
+<span class="c1"># append AppLauncher cli args</span>
+<span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+<span class="c1"># parse the arguments</span>
+<span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+<span class="c1"># launch omniverse app</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImplicitActuatorCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets.articulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+
+<span class="n">JETBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/NVIDIA/Jetbot/jetbot.usd"</span><span class="p">),</span>
+    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">"wheel_acts"</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">".*"</span><span class="p">],</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">)},</span>
+<span class="p">)</span>
+
+<span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
+        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Yahboom/Dofbot/dofbot.usd"</span><span class="p">,</span>
+        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+            <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+            <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
+        <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"joint1"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">"joint2"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">"joint3"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">"joint4"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"front_joints"</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">"joint[1-2]"</span><span class="p">],</span>
+            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="s2">"joint3_act"</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">"joint3"</span><span class="p">],</span>
+            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="s2">"joint4_act"</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">"joint4"</span><span class="p">],</span>
+            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Designs the scene."""</span>
+
+    <span class="c1"># Ground-plane</span>
+    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+
+    <span class="c1"># lights</span>
+    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="p">)</span>
+
+    <span class="c1"># robot</span>
+    <span class="n">Jetbot</span> <span class="o">=</span> <span class="n">JETBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Jetbot"</span><span class="p">)</span>
+    <span class="n">Dofbot</span> <span class="o">=</span> <span class="n">DOFBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Dofbot"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">sim_time</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># reset</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># reset counters</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># reset the scene entities to their initial positions offset by the environment origins</span>
+            <span class="n">root_jetbot_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+            <span class="n">root_dofbot_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+
+            <span class="c1"># copy the default root state to the sim for the jetbot's orientation and velocity</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+
+            <span class="c1"># copy the default joint states to the sim</span>
+            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+            <span class="p">)</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+            <span class="p">)</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+            <span class="c1"># clear internal buffers</span>
+            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting Jetbot and Dofbot state..."</span><span class="p">)</span>
+
+        <span class="c1"># drive around</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">&lt;</span> <span class="mi">75</span><span class="p">:</span>
+            <span class="c1"># Drive straight by setting equal wheel velocities</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([[</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">]])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Turn by applying different velocities</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([[</span><span class="mf">5.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.0</span><span class="p">]])</span>
+
+        <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_velocity_target</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+
+        <span class="c1"># wave</span>
+        <span class="n">wave_action</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span>
+        <span class="n">wave_action</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">sim_time</span><span class="p">)</span>
+        <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">wave_action</span><span class="p">)</span>
+
+        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="n">sim_time</span> <span class="o">+=</span> <span class="n">sim_dt</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Main function."""</span>
+    <span class="c1"># Initialize the simulation context</span>
+    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">args_cli</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">3.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+    <span class="c1"># Design scene</span>
+    <span class="n">scene_cfg</span> <span class="o">=</span> <span class="n">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">args_cli</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+    <span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">scene_cfg</span><span class="p">)</span>
+    <span class="c1"># Play the simulator</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+    <span class="c1"># Now we are ready!</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Setup complete..."</span><span class="p">)</span>
+    <span class="c1"># Run the simulator</span>
+    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</details></section>
+<section>
+<h2 id="the-code-explained"><span class="heading-number">2</span> 代码解析</h2><p>从本质上说，Robot 是带有关节驱动器的 Articulation。要让 Robot 在 Simulation 中运动，需要向驱动器发送目标值并推进 Simulation。直接管理各个关节驱动器十分繁琐，尤其是在控制复杂 Robot 或并行复制多个 Environment 时。</p><p>Isaac Lab 使用一组 Configuration Class 描述 Robot Asset，例如需要复制哪些 USD Prim、哪些关节由 Agent 控制，以及执行 Reset 时应恢复到什么状态。具体配置取决于 Robot 所需的控制精度。本教程使用两个示例：<code class="docutils literal notranslate"><span class="pre">Jetbot</span></code> 采用最小配置，<code class="docutils literal notranslate"><span class="pre">Dofbot</span></code> 则额外配置物理属性和初始状态。</p><p>Jetbot 是顶部带有 Camera 的双轮差速 Robot。由于其 USD Asset 已由 Isaac Sim 提供，接入 Isaac Lab 时只需用 <code class="docutils literal notranslate"><span class="pre">ArticulationCfg</span></code> 描述该 Robot。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.actuators</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImplicitActuatorCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">AssetBaseCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.assets.articulation</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArticulationCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">InteractiveScene</span><span class="p">,</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAAC_NUCLEUS_DIR</span>
+
+<span class="n">JETBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/NVIDIA/Jetbot/jetbot.usd"</span><span class="p">),</span>
+    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span><span class="s2">"wheel_acts"</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span><span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">".*"</span><span class="p">],</span> <span class="n">damping</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">stiffness</span><span class="o">=</span><span class="kc">None</span><span class="p">)},</span>
+<span class="p">)</span>
+
+</pre></div>
+</div>
+<p>这是 Isaac Lab 中最精简的 Robot Configuration，只包含 <code class="docutils literal notranslate"><span class="pre">spawn</span></code> 和 <code class="docutils literal notranslate"><span class="pre">actuators</span></code> 两个参数。</p><p><code class="docutils literal notranslate"><span class="pre">spawn</span></code> 参数接收 <code class="docutils literal notranslate"><span class="pre">SpawnerCfg</span></code>，用于指定描述 Robot 的 USD Asset。<code class="docutils literal notranslate"><span class="pre">isaaclab.sim</span></code> 提供的 <code class="docutils literal notranslate"><span class="pre">USDFileCfg</span></code> 可以根据 USD 文件路径生成所需的 SpawnerCfg；本例使用 Isaac Sim Assets 中的 <code>Robots/Jetbot/jetbot.usd</code>。这里的 <code>configuration</code> 即 Robot 的生成配置，文件名为 <code>jetbot.usd</code>。</p><p><code class="docutils literal notranslate"><span class="pre">actuators</span></code> 是执行器 Configuration 的字典，用于指定 Agent 控制 Robot 的哪些关节，以及采用何种执行器模型。Isaac Lab 提供多种常见执行器模型，也支持自定义实现。本例的车轮使用 <code class="docutils literal notranslate"><span class="pre">ImplicitActuatorCfg</span></code>，并沿用 USD Asset 中的默认参数。</p><p>actuators 字典的键是匹配关节名称的正则表达式。Jetbot 的关节较少，且全部使用相同配置，因此用 <code class="docutils literal notranslate"><span class="pre">.*</span></code> 匹配所有关节；也可以使用多个表达式为不同关节组指定不同配置。</p><div class="admonition note">
+<p class="admonition-title">笔记</p>
+<p>必须在隐式执行器中指定刚度和阻尼，但值 <code class="docutils literal notranslate"><span class="pre">None</span></code> 将使用 <span class="term">USD</span> <span class="term">Asset</span> 中定义的默认值。</p>
+</div>
+<p>除上述最小配置外，还可以按需指定更多参数。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="n">DOFBOT_CONFIG</span> <span class="o">=</span> <span class="n">ArticulationCfg</span><span class="p">(</span>
+    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span>
+        <span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Robots/Yahboom/Dofbot/dofbot.usd"</span><span class="p">,</span>
+        <span class="n">rigid_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(</span>
+            <span class="n">disable_gravity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">max_depenetration_velocity</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">articulation_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">ArticulationRootPropertiesCfg</span><span class="p">(</span>
+            <span class="n">enabled_self_collisions</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">solver_position_iteration_count</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">solver_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span>
+        <span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">init_state</span><span class="o">=</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span>
+        <span class="n">joint_pos</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"joint1"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">"joint2"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">"joint3"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">"joint4"</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">actuators</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"front_joints"</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">"joint[1-2]"</span><span class="p">],</span>
+            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="s2">"joint3_act"</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">"joint3"</span><span class="p">],</span>
+            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="s2">"joint4_act"</span><span class="p">:</span> <span class="n">ImplicitActuatorCfg</span><span class="p">(</span>
+            <span class="n">joint_names_expr</span><span class="o">=</span><span class="p">[</span><span class="s2">"joint4"</span><span class="p">],</span>
+            <span class="n">effort_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">velocity_limit_sim</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="o">=</span><span class="mf">10000.0</span><span class="p">,</span>
+            <span class="n">damping</span><span class="o">=</span><span class="mf">100.0</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Dofbot 是具有多个关节的简易机械臂，因此配置项更多。与 Jetbot 相比，主要增加了物理属性和初始状态 <code class="docutils literal notranslate"><span class="pre">init_state</span></code>。</p><p><code class="docutils literal notranslate"><span class="pre">USDFileCfg</span></code> 可以配置 Rigid Body 和 Articulation 的物理属性。<code class="docutils literal notranslate"><span class="pre">rigid_props</span></code> 接收 <code class="docutils literal notranslate"><span class="pre">RigidBodyPropertiesCfg</span></code>，用于描述各 Link 作为 Rigid Body 时的行为；<code class="docutils literal notranslate"><span class="pre">articulation_props</span></code> 接收 <code class="docutils literal notranslate"><span class="pre">ArticulationRootPropertiesCfg</span></code>，用于设置求解器等与关节仿真相关的属性。<a class="reference internal" href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.sim.schemas.html#module-isaaclab.sim.schemas" title="isaaclab.sim.schemas"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.sim.schemas</span></code></a> 还提供其他可选的物理配置。</p><p><code class="docutils literal notranslate"><span class="pre">ArticulationCfg</span></code> 的 <code class="docutils literal notranslate"><span class="pre">init_state</span></code> 参数定义 Robot 在生成或 Reset 时使用的初始状态。<code class="docutils literal notranslate"><span class="pre">joint_pos</span></code> 是以 USD 关节名称为键的字典，而不是以执行器名称为键。<code class="docutils literal notranslate"><span class="pre">pos</span></code> 使用 Environment 局部坐标系，因此 <code class="docutils literal notranslate"><span class="pre">(0.25,</span> <span class="pre">-0.25,</span> <span class="pre">0.0)</span></code> 表示相对 Environment Origin 的偏移，而不是相对世界坐标原点。</p><p>完成两个 Robot 的 Configuration 后，即可在 Direct Workflow 中通过包含相应 Articulation Configuration 的 <code class="docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code> 将它们加入 Scene。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">NewRobotsSceneCfg</span><span class="p">(</span><span class="n">InteractiveSceneCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Designs the scene."""</span>
+
+    <span class="c1"># Ground-plane</span>
+    <span class="n">ground</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/defaultGroundPlane"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">())</span>
+
+    <span class="c1"># lights</span>
+    <span class="n">dome_light</span> <span class="o">=</span> <span class="n">AssetBaseCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">"/World/Light"</span><span class="p">,</span> <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DomeLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+    <span class="p">)</span>
+
+    <span class="c1"># robot</span>
+    <span class="n">Jetbot</span> <span class="o">=</span> <span class="n">JETBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Jetbot"</span><span class="p">)</span>
+    <span class="n">Dofbot</span> <span class="o">=</span> <span class="n">DOFBOT_CONFIG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">"</span><span class="si">{ENV_REGEX_NS}</span><span class="s2">/Dofbot"</span><span class="p">)</span>
+
+</pre></div>
+</div>
+<p>随后推进 Simulation，并在每个 Step 中正确更新 Scene 实体。</p><div class="code-block" data-language="Python"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+    <span class="n">sim_dt</span> <span class="o">=</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">()</span>
+    <span class="n">sim_time</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+        <span class="c1"># reset</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># reset counters</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="c1"># reset the scene entities to their initial positions offset by the environment origins</span>
+            <span class="n">root_jetbot_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+            <span class="n">root_dofbot_state</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_root_state</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">scene</span><span class="o">.</span><span class="n">env_origins</span>
+
+            <span class="c1"># copy the default root state to the sim for the jetbot's orientation and velocity</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_jetbot_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_dofbot_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:])</span>
+
+            <span class="c1"># copy the default joint states to the sim</span>
+            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+            <span class="p">)</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+            <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+                <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="o">.</span><span class="n">clone</span><span class="p">(),</span>
+            <span class="p">)</span>
+            <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+            <span class="c1"># clear internal buffers</span>
+            <span class="n">scene</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"[INFO]: Resetting Jetbot and Dofbot state..."</span><span class="p">)</span>
+
+        <span class="c1"># drive around</span>
+        <span class="k">if</span> <span class="n">count</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">&lt;</span> <span class="mi">75</span><span class="p">:</span>
+            <span class="c1"># Drive straight by setting equal wheel velocities</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([[</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">]])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Turn by applying different velocities</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([[</span><span class="mf">5.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.0</span><span class="p">]])</span>
+
+        <span class="n">scene</span><span class="p">[</span><span class="s2">"Jetbot"</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_velocity_target</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+
+        <span class="c1"># wave</span>
+        <span class="n">wave_action</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_pos</span>
+        <span class="n">wave_action</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">sim_time</span><span class="p">)</span>
+        <span class="n">scene</span><span class="p">[</span><span class="s2">"Dofbot"</span><span class="p">]</span><span class="o">.</span><span class="n">set_joint_position_target</span><span class="p">(</span><span class="n">wave_action</span><span class="p">)</span>
+
+        <span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+        <span class="n">sim_time</span> <span class="o">+=</span> <span class="n">sim_dt</span>
+        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">sim_dt</span><span class="p">)</span>
+
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">笔记</p>
+<p>您可能会看到一条警告，表明并非所有执行器均已配置！这是预料之中的，因为我们在本教程中不处理夹具。</p>
+</div>
+<figure class="align-center" style="width: 100%">
+<img alt="The new robots say hi!" src="../../assets/tutorial_add_new_robot_result.jpg" class="tutorial-image">
+</figure>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                
+      <nav class="page-nav" aria-label="翻页">
+        <a href="../00_sim/launch_app.html">← 上一篇：深入了解 AppLauncher</a>
+        <a href="run_rigid_object.html">下一篇：与 Rigid Object 交互 →</a>
+      </nav>
+      <footer class="page-footer">
+        <p>原文：The Isaac Lab Project Developers。中文内容为非官方翻译；
+        对应版本 v2.3.2。<a href="https://isaac-sim.github.io/IsaacLab/v2.3.2/source/tutorials/01_assets/add_new_robot.html">查看官方英文页面</a></p>
+      </footer>
+    </main>
+    <aside class="toc" aria-label="本页目录">
+      <strong>本页目录</strong>
+    <a href="#the-code">1 代码</a><a href="#the-code-explained">2 代码解析</a></aside>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>
