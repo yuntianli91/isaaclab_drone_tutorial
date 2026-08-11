@@ -28,6 +28,11 @@ parser.add_argument(
   help="Fixed hover height relative to each environment origin.",
 )
 parser.add_argument(
+  "--velocity_scale", type=float, nargs=3, required=True,
+  metavar=("VX_MAX", "VY_MAX", "VZ_MAX"),
+  help="Required world-frame maximum speeds in m/s; no default is assumed.",
+)
+parser.add_argument(
   "--max_steps", type=int, default=500,
   help=(
     "Number of environment steps before exit; use 0 to run until the app "
@@ -46,6 +51,8 @@ if args_cli.env_spacing <= 0.0:
   parser.error("--env_spacing must be positive")
 if args_cli.hover_height <= 0.0:
   parser.error("--hover_height must be positive")
+if any(value <= 0.0 for value in args_cli.velocity_scale):
+  parser.error("all --velocity_scale values must be positive")
 if args_cli.max_steps < 0:
   parser.error("--max_steps must be non-negative")
 app_launcher = AppLauncher(args_cli)
@@ -53,10 +60,9 @@ simulation_app = app_launcher.app
 
 
 import torch
-from isaaclab.assets import Articulation
 from isaaclab.envs import ManagerBasedEnv
 
-from isaaclab_uav_tutorial.controllers import CascadedPIDController
+from isaaclab_uav_tutorial.controllers import PositionCommandPID
 from isaaclab_uav_tutorial.envs import HoverManagerEnvCfg
 
 
@@ -68,26 +74,24 @@ def main() -> None:
   env_cfg.scene.env_spacing = args_cli.env_spacing
   env_cfg.sim.device = args_cli.device
   env_cfg.seed = args_cli.seed
+  env_cfg.actions.velocity_yaw.velocity_scale = tuple(
+    args_cli.velocity_scale
+  )
   env = ManagerBasedEnv(cfg=env_cfg)
 
   try:
     observation, _ = env.reset(seed=args_cli.seed)
     policy_observation = observation["policy"]
-    uav: Articulation = env.scene["uav"]
-    robot_mass = float(uav.root_physx_view.get_masses()[0].sum().item())
-    gravity_magnitude = float(
-      torch.tensor(env.sim.cfg.gravity, device=env.device).norm().item()
-    )
 
-    controller = CascadedPIDController(
+    controller = PositionCommandPID(
       num_envs=env.num_envs,
       device=env.device,
       control_dt=env.step_dt,
-      robot_mass=robot_mass,
-      gravity_magnitude=gravity_magnitude,
+      velocity_scale=args_cli.velocity_scale,
     )
     target_position = torch.zeros(env.num_envs, 3, device=env.device)
     target_position[:, 2] = args_cli.hover_height
+    target_yaw = torch.zeros(env.num_envs, device=env.device)
 
     print(
       f"[INFO] Environment ready: num_envs={env.num_envs}, "
@@ -102,6 +106,10 @@ def main() -> None:
       "[INFO] Observation order: local_position(3), quaternion_wxyz(4), "
       "linear_velocity_w(3), angular_velocity_b(3)."
     )
+    print(
+      "[INFO] Action order: normalized world velocity(3), "
+      "normalized absolute yaw(1)."
+    )
 
     step_count = 0
     tracked_error_sum = 0.0
@@ -114,7 +122,9 @@ def main() -> None:
     while simulation_app.is_running() and (
       args_cli.max_steps == 0 or step_count < args_cli.max_steps
     ):
-      last_action = controller.compute(policy_observation, target_position)
+      last_action = controller.compute(
+        policy_observation, target_position, target_yaw
+      )
       observation, _ = env.step(last_action)
       policy_observation = observation["policy"]
       step_count += 1

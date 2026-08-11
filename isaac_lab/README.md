@@ -22,11 +22,14 @@ isaac_lab/
 ├── src/
 │   └── isaaclab_uav_tutorial/
 │       ├── actions/
+│       │   ├── velocity_yaw.py
 │       │   └── body_wrench.py
 │       ├── assets/
 │       │   └── default_uav.py
 │       ├── controllers/
-│       │   └── cascaded_pid.py
+│       │   ├── position_command_pid.py
+│       │   ├── velocity_yaw.py
+│       │   └── attitude.py
 │       ├── envs/
 │       │   └── hover_manager_env.py
 │       └── scenes/
@@ -74,11 +77,15 @@ conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_00_scene.py --num_en
 ## 运行 Tutorial 1
 
 ```bash
-# 单环境 GUI，外部 PID 控制
-conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py
+# 单环境 GUI，显式设置 world XYZ 最大速度 (m/s)
+conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py \
+  --velocity_scale VX_MAX VY_MAX VZ_MAX
 
 # 单环境 headless
-conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py --headless
+conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py \
+  --velocity_scale VX_MAX VY_MAX VZ_MAX --headless
 ```
+
+这里没有替三轴速度上限设置经验默认值；确认实际限制后可再固化到配置中。
 
 详细接口定义见 [Tutorial 1 文档](docs/tutorial_01_manager_env_pid.md)。

@@ -187,6 +187,12 @@ assets/
 scenes/
     定义“世界里有什么”
 
+actions/
+    定义高层 RL ActionTerm，以及与仿真物理接口相连的施力辅助类
+
+controllers/
+    保存 Planner baseline、速度/航向控制器和姿态控制器
+
 mdp/
     定义 observation / reward / command / reset 等任务函数
 
@@ -195,9 +201,6 @@ tasks/
 
 agents/
     定义 PPO / 网络 / 优化器等训练参数
-
-tools/controllers/
-    保存 PID 等非教学主体工具
 
 tutorials/
     提供每一步最小、可直接运行的演示入口
@@ -341,22 +344,37 @@ PID 是外部 Agent / Controller：
 ```text
 Observation
     ↓
-Imported Cascaded PID
+PositionCommandPID（Planner baseline）
     ↓
-Action
+normalized [v_x, v_y, v_z, yaw_absolute]
     ↓
-ManagerBasedEnv
+VelocityYawAction
+    ↓
+VelocityYawController
+    ↓ thrust + attitude
+AttitudeController
+    ↓ body wrench
+BodyWrenchApplier
 ```
 
-不要把 PID 实现嵌入 Env。
+不要把 Planner baseline 或飞行控制器的实现嵌入 Env。环境只通过
+ActionManager 注册一个高层 ``VelocityYawAction``。
 
-建议：
+模块划分：
 
-```python
-from ...tools.controllers.cascaded_pid import CascadedPIDController
+```text
+actions/
+├── velocity_yaw.py
+└── body_wrench.py
+
+controllers/
+├── position_command_pid.py
+├── velocity_yaw.py
+└── attitude.py
 ```
 
-PID 只负责产生和 RL policy 相同语义的 action。
+外层 ``PositionCommandPID`` 只负责产生和 RL policy 相同语义的 action。
+``BodyWrenchApplier`` 是普通辅助类，不是第二个 ActionTerm。
 
 ## 5.3 Action 设计
 
@@ -365,14 +383,12 @@ PID 只负责产生和 RL policy 相同语义的 action。
 例如：
 
 ```text
-action =
-[
-    collective_thrust,
-    roll_control,
-    pitch_control,
-    yaw_control
-]
+action = [v_x, v_y, v_z, yaw_absolute]
 ```
+
+速度使用 world 坐标系，``yaw_absolute`` 表示 world 坐标系中的绝对航向角。
+动作进入环境后，再由内层飞行控制器转换为推力、姿态和 body wrench；不要
+通过直接写入 root velocity 绕过四旋翼动力学。
 
 具体采用 body wrench、thrust/moment 或本地 multirotor action term，以本地 Isaac Lab UAV API 为准。
 
@@ -1472,8 +1488,8 @@ torch tensor
 推荐接口概念：
 
 ```python
-controller = CascadedPIDController(...)
-action = controller.compute(observation_or_state, target)
+controller = PositionCommandPID(...)
+action = controller.compute(observation, target_position, target_yaw)
 ```
 
 具体参数和实现可放在工具模块。

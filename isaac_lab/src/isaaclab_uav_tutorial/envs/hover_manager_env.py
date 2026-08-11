@@ -5,7 +5,7 @@
 它只涉及以下三个 Manager：
 
 * :class:`ObservationManager`：从仿真状态中组织批量观测；
-* :class:`ActionManager`：把归一化动作转换为无人机受到的推力和力矩；
+* :class:`ActionManager`：把归一化速度/航向动作送入内层飞行控制器；
 * :class:`EventManager`：在环境 reset 时随机化无人机初始状态。
 
 固定悬停目标和 PID 控制器不属于环境，因此没有放在本文件中。PID
@@ -24,7 +24,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
-from isaaclab_uav_tutorial.actions import UavBodyWrenchActionCfg
+from isaaclab_uav_tutorial.actions import VelocityYawActionCfg
 from isaaclab_uav_tutorial.scenes import UavObstacleSceneCfg
 
 
@@ -32,13 +32,16 @@ from isaaclab_uav_tutorial.scenes import UavObstacleSceneCfg
 class ActionsCfg:
   """声明 ActionManager 中启用的全部动作项。
 
-  当前只有一个 ``body_wrench`` term，所以 ActionManager 的最终动作
-  仍为四维。这里的
+  当前只有一个 ``velocity_yaw`` term，所以 ActionManager 的最终动作
+  为 ``[v_x, v_y, v_z, yaw]`` 四维。这里的
   ``asset_name="uav"`` 对应 :class:`UavObstacleSceneCfg` 中的 ``uav`` 字段。
+
+  ``velocity_scale`` 没有默认值，因为三轴物理速度上限尚未确认。入口脚本
+  必须在创建环境前显式覆盖该字段。
   """
 
-  body_wrench = UavBodyWrenchActionCfg(  # UAV wrench 动作项。
-    asset_name="uav"                     # 场景资产键。
+  velocity_yaw = VelocityYawActionCfg(  # 高层速度与绝对航向动作项。
+    asset_name="uav"                    # 场景资产键。
   )
 
 

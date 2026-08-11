@@ -4,11 +4,14 @@
 “观察 → 动作 → 仿真”的环境：
 
 ```text
-外部 CascadedPIDController
-    ↓ normalized batch action [N, 4]
+外部 PositionCommandPID（Planner baseline）
+    ↓ normalized [v_x, v_y, v_z, yaw_absolute]
 ManagerBasedEnv
 ├── ObservationManager
-├── ActionManager
+├── ActionManager（唯一 VelocityYawAction）
+│   ├── VelocityYawController：velocity/yaw → thrust/attitude
+│   ├── AttitudeController：thrust/attitude → body wrench
+│   └── BodyWrenchApplier：向 UAV 刚体施力
 ├── EventManager
 └── Tutorial 0 的 UavObstacleSceneCfg
 ```
@@ -20,16 +23,21 @@ ManagerBasedEnv
 
 ```bash
 # 单环境 GUI
-conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py
+conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py \
+  --velocity_scale VX_MAX VY_MAX VZ_MAX
 
 # 单环境 headless
-conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py --headless
+conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py \
+  --velocity_scale VX_MAX VY_MAX VZ_MAX --headless
 
 # 修改固定悬停高度
-conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py --hover_height 0.8
+conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.py \
+  --velocity_scale VX_MAX VY_MAX VZ_MAX --hover_height 0.8
 ```
 
 脚本仍是独立主入口。`src/` 中只放多个 Tutorial 会复用的 Environment 和 Controller。
+`VX_MAX VY_MAX VZ_MAX` 是三轴最大速度绝对值 (m/s)。这些参数尚未确认，所以入口
+要求显式提供，不使用未经确认的经验默认值。
 
 ## Observation
 
@@ -46,25 +54,25 @@ conda run -n isaaclab_232 python isaac_lab/scripts/tutorial_01_manager_env_pid.p
 
 ## Action
 
-`action` 是 `[num_envs, 4]`、范围 `[-1, 1]` 的 tensor：
+`action` 是 `[num_envs, 4]`、范围 `[-1, 1]` 的无量纲 tensor：
 
 ```text
-[collective_thrust, roll_moment, pitch_moment, yaw_moment]
+[v_x, v_y, v_z, yaw_absolute]
 ```
 
-映射与本机 Isaac Lab 2.3.2 的 Direct Crazyflie 示例一致：
+其中三轴速度位于 world 坐标系；绝对 yaw 位于 world 坐标系，`-1` 和 `+1`
+分别映射到 `-π rad` 和 `+π rad`。三轴速度分别乘以命令行提供的
+`VX_MAX VY_MAX VZ_MAX`。
 
-- `collective_thrust=-1` 对应零推力，`+1` 对应 `1.9 × robot_weight`；
-- roll、pitch、yaw 力矩（第 1、2、3 维）分别绕 body X、Y、Z 轴施加，
-  `±1` 对应 `±0.01 N·m`；
-- 推力和力矩通过 `permanent_wrench_composer` 施加到名为 `body` 的 link。
+环境只注册 `VelocityYawAction`。它先通过速度/航向控制器得到 collective thrust
+和期望姿态，再通过姿态控制器得到 body wrench，最后由普通辅助类
+`BodyWrenchApplier` 调用 `permanent_wrench_composer`。因此 ActionManager 中不会
+同时出现高层动作项和底层 wrench 动作项。
 
-这套 body-wrench 接口可以继续作为后续控制器的低层物理作用接口。未来的
-``[v_x, v_y, v_z, yaw]`` 高层动作需要先通过控制器转换为合推力和合力矩，
-其中 ``yaw`` 表示期望绝对航向角，而不是期望航向角速度。
-具体 ActionTerm 实现在
-[`actions/body_wrench.py`](../src/isaaclab_uav_tutorial/actions/body_wrench.py)，
-环境配置只负责选择并配置该动作项。
+高层 ActionTerm 位于
+[`actions/velocity_yaw.py`](../src/isaaclab_uav_tutorial/actions/velocity_yaw.py)，
+底层施力辅助类位于
+[`actions/body_wrench.py`](../src/isaaclab_uav_tutorial/actions/body_wrench.py)。
 
 ## Reset
 
@@ -72,4 +80,4 @@ EventManager 在 reset 时围绕 Crazyflie 的默认状态施加小幅位置、�
 入口只在启动时调用一次完整 reset。后续 RL 教程将由 ``ManagerBasedRLEnv``
 根据终止条件自动重置对应的并行环境，不再编写手动局部 reset 演示函数。
 
-固定目标默认是资产初始高度 `[0, 0, 0.5] m`，可用 `--hover_height` 修改。
+固定目标默认是资产初始高度 `[0, 0, 1.0] m`，可用 `--hover_height` 修改。
