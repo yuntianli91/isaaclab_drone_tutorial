@@ -73,27 +73,40 @@ Tutorial 0 已作为公共 Scene 被 Tutorial 1 复用。
 ### Files changed
 
 - `scripts/tutorial_01_manager_env_pid.py`：独立可执行入口；
+- `configs/common/uav_obstacle_base.yaml`：公共 UAV、场景和内层飞控参数；
+- `configs/tasks/hover_fixed.yaml`：固定悬停任务参数；
+- `configs/tutorials/tutorial1.yaml`：Tutorial 1 运行参数和覆盖值；
+- `src/isaaclab_uav_tutorial/config/yaml_loader.py`：公共 YAML 加载框架；
+- `src/isaaclab_uav_tutorial/config/tutorial1.py`：Tutorial 1 参数模型；
 - `src/isaaclab_uav_tutorial/actions/velocity_yaw.py`：唯一的高层 ActionTerm；
 - `src/isaaclab_uav_tutorial/actions/body_wrench.py`：普通 body-wrench 施力辅助类；
 - `src/isaaclab_uav_tutorial/envs/hover_manager_env.py`：ManagerBasedEnv 配置、观测项和 reset event；
 - `src/isaaclab_uav_tutorial/controllers/position_command_pid.py`：外层 Planner baseline；
 - `src/isaaclab_uav_tutorial/controllers/velocity_yaw.py`：速度/航向内层控制器；
 - `src/isaaclab_uav_tutorial/controllers/attitude.py`：底层姿态控制器；
+- `src/isaaclab_uav_tutorial/monitoring/flight_logger.py`：单环境飞行 CSV；
+- `src/isaaclab_uav_tutorial/monitoring/flight_plotter.py`：飞行曲线绘制；
 - `docs/tutorial_01_manager_env_pid.md`：observation、action、reset 与运行说明；
 - `README.md`：结构与 Tutorial 1 入口。
 
 ### Tests passed
 
 - Ruff 与 Python 静态编译通过；
-- 新分层结构使用测试专用 ``velocity_scale=(1, 1, 1) m/s`` 完成 1 environment、
-  headless、20 environment steps 的 ActionTerm 初始化与运行 smoke test；该数值
-  没有写入项目配置；
+- 三层 Tutorial 1 YAML 可完成继承、合并和类型转换；`velocity_scale: null`
+  会在 Isaac Sim 启动前给出明确错误；
+- 使用仅供 smoke test 的 YAML 参数 ``velocity_scale=(1, 1, 1) m/s`` 后，
+  YAML 构建的场景、UAV 初始状态、reset、ActionTerm 和三层控制器完成
+  4 environments、headless、20 environment steps；测试值未保留；
 - 1 environment、headless、500 environment steps，最终位置误差 `0.0196 m`；
 - 4 environments、GUI、100 environment steps，最终平均位置误差 `0.0347 m`；
 - 64 environments、headless、500 environment steps，最终平均位置误差 `0.0393 m`，最大误差 `0.1142 m`；
 - ObservationManager 输出 `(64, 13)` CUDA tensor；
 - ActionManager 接收 `(64, 4)` CUDA tensor；
 - 所有最终 observation/action 均为 finite；
+- FlightLogger CPU 单元测试通过，确认 CSV 批量写入和绘图接口；
+- 完整 `W → E` 位置、自由向量和姿态变换单元测试通过；
+- 1 environment、headless、100 environment steps 的旧版日志测试已被后续
+  physics-rate 实现取代，等待重新执行真实仿真验证。
 
 ### Tutorial boundary
 

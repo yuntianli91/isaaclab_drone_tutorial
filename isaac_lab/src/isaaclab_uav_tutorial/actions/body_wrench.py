@@ -25,10 +25,8 @@ class BodyWrenchApplier:
     self._asset = asset
     self._body_ids, body_names = asset.find_bodies(body_name)
     if len(self._body_ids) != 1:
-      raise ValueError(
-        f"Expected body_name={body_name!r} to match exactly one body; "
-        f"matched {body_names}."
-      )
+      raise ValueError(f"Expected body_name={body_name!r} to match exactly "
+                       f"one body; matched {body_names}.")
 
     num_envs = asset.data.root_pos_w.shape[0]
     device = asset.device
@@ -36,7 +34,7 @@ class BodyWrenchApplier:
     self._forces_b = torch.zeros(num_envs, 1, 3, device=device)
     self._torques_b = torch.zeros_like(self._forces_b)
 
-  # ===== apply ============================================================= #
+  # ===== apply ============================================================== #
   def apply(self, forces_b: torch.Tensor, torques_b: torch.Tensor) -> None:
     """缓存并施加机体系合力与合力矩。
 
@@ -49,18 +47,16 @@ class BodyWrenchApplier:
     """
     expected_shape = (self._forces_b.shape[0], 3)
     if forces_b.shape != expected_shape or torques_b.shape != expected_shape:
-      raise ValueError(
-        f"Expected force and torque shapes {expected_shape}; got "
-        f"{tuple(forces_b.shape)} and {tuple(torques_b.shape)}."
-      )
+      raise ValueError(f"Expected force and torque shapes {expected_shape}; "
+                       f"got {tuple(forces_b.shape)} and "
+                       f"{tuple(torques_b.shape)}.")
 
     self._forces_b[:, 0, :].copy_(forces_b)
     self._torques_b[:, 0, :].copy_(torques_b)
-    self._asset.permanent_wrench_composer.set_forces_and_torques(
-      body_ids=self._body_ids,
-      forces=self._forces_b,
-      torques=self._torques_b,
-    )
+    wrench_composer = self._asset.permanent_wrench_composer
+    wrench_composer.set_forces_and_torques(body_ids=self._body_ids,
+                                           forces=self._forces_b,
+                                           torques=self._torques_b)
 
   # ===== reset ============================================================== #
   def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:

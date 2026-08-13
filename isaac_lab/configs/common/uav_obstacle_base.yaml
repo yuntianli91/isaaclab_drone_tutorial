@@ -1,0 +1,66 @@
+# UAV 动力学和仿真周期参数。
+simulation:
+  physics_dt: 0.01            # 单个 physics step 周期 (s)。
+  decimation: 2               # 每个环境步包含的 physics step 数。
+  gravity: [0.0, 0.0, -9.81]  # world 重力加速度 [X, Y, Z] (m/s²)。
+
+# 所有 Tutorial 复用的 UAV 障碍物场景参数。
+scene:
+  env_spacing: 6.0         # 相邻环境原点间距 (m)。
+  replicate_physics: true  # 是否复用同一份物理 schema。
+
+  # UAV root 相对环境原点的默认初始状态。
+  uav_initial_state:
+    position: [0.0, 0.0, 0.1]                # 初始位置 [X, Y, Z] (m)。
+    orientation_wxyz: [1.0, 0.0, 0.0, 0.0]   # 初始 WXYZ 四元数 [W, X, Y, Z]。
+    linear_velocity: [0.0, 0.0, 0.0]         # world 初始线速度 [X, Y, Z] (m/s)。
+    angular_velocity: [0.0, 0.0, 0.0]        # world 初始角速度 [X, Y, Z] (rad/s)。
+
+  # 仿真场景的穹顶灯参数。
+  dome_light:
+    intensity: 2500.0            # DomeLight 渲染强度。
+    color: [0.75, 0.75, 0.75]    # 归一化 RGB 颜色。
+
+  # 三根静态可碰撞柱体。
+  obstacles:
+    # 高柱体参数。
+    pillar_tall:
+      position: [-1.5, -1.0, 1.25]  # 圆柱体中心相对环境原点的中心位置 (m)。
+      size: [0.45, 0.45, 2.5]       # 沿 X、Y、Z 轴的尺寸 (m)。
+      color: [0.65, 0.22, 0.18]     # 归一化 RGB 漫反射颜色。
+      roughness: 0.8                # 材质粗糙度。
+
+    # 中柱体参数。
+    pillar_medium:
+      position: [-1.5, 0.8, 0.8]    # 相对环境原点的中心位置 (m)。
+      size: [0.6, 0.6, 1.6]         # 沿 X、Y、Z 轴的尺寸 (m)。
+      color: [0.18, 0.42, 0.65]     # 归一化 RGB 漫反射颜色。
+      roughness: 0.8                # 材质粗糙度。
+
+    # 低柱体参数。
+    pillar_low:
+      position: [0.3, -1.6, 0.5]    # 相对环境原点的中心位置 (m)。
+      size: [0.8, 0.8, 1.0]         # 沿 X、Y、Z 轴的尺寸 (m)。
+      color: [0.28, 0.58, 0.30]     # 归一化 RGB 漫反射颜色。
+      roughness: 0.8                # 材质粗糙度。
+
+# UAV 与仿真物理接口的稳定绑定参数。
+action:
+  asset_name: uav  # Scene 中的 UAV 实体键。
+  body_name: body  # 接收 body wrench 的刚体 link。
+
+# 所有高层 Planner 和 RL policy 复用的内层飞行控制器参数。
+controllers:
+  # 速度与绝对航向控制器参数。
+  velocity_yaw:
+    velocity_kp: [3.0, 3.0, 4.5]   # XYZ 速度比例增益 (1/s)。
+    max_tilt_rad: 0.6              # 最大倾角 (rad)。
+    thrust_to_weight: 1.9          # 最大总推力与整机重力之比。
+
+  # 姿态控制器参数。
+  attitude:
+    attitude_kp: [0.08, 0.08, 0.03]      # body XYZ 姿态比例增益 (N·m)。
+    attitude_ki: [0.0, 0.0, 0.0]         # body XYZ 姿态积分增益 (N·m/s)。
+    attitude_kd: [0.003, 0.003, 0.001]   # body XYZ 角速度增益 (N·m·s)。
+    attitude_integral_limit: 0.3         # 每轴姿态积分限幅 (s)。
+    moment_scale: 0.01                   # 每轴最大合力矩 (N·m)。

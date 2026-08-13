@@ -1,0 +1,58 @@
+# 依次加载的稳定公共配置；后面的配置覆盖前面的配置。
+base:
+  - ../common/uav_obstacle_base.yaml  # UAV、场景和内层飞控配置。
+  - ../tasks/hover_fixed.yaml         # 固定悬停任务配置。
+
+# Isaac Sim 启动参数。
+app:
+  headless: false             # 是否以无窗口模式启动。
+  livestream: 0               # WebRTC 直播模式；0 表示关闭。
+  enable_cameras: false       # 是否加载相机与离屏渲染扩展。
+  xr: false                   # 是否启用 OpenXR 模式。
+  device: cuda:0              # 仿真计算设备。
+  experience: ""              # 空值表示自动选择 experience。
+  rendering_mode: balanced    # 渲染质量模式。
+
+# Tutorial 1 入口运行参数。
+runtime:
+  num_envs: 1    # 并行环境数量。
+  max_steps: 200   # 最大环境步数；0 表示持续运行。
+  seed: 42       # 环境随机数种子。
+
+# 默认 Viewer 相机参数。
+viewer:
+  eye: [9.0, 9.0, 7.0]      # world 相机位置 [X, Y, Z] (m)。
+  lookat: [0.0, 0.0, 0.8]   # world 相机注视点 [X, Y, Z] (m)。
+
+# Tutorial 1 的渲染和资源加载覆盖参数。
+simulation:
+  render_interval: 2        # 渲染间隔，单位为 physics step。
+  wait_for_textures: false  # 启动时是否等待材质纹理加载完成。
+
+# Tutorial 1 的观测运行参数。
+observations:
+  enable_corruption: false  # 是否启用 ObservationTerm 观测噪声。
+
+# Tutorial 1 高层动作覆盖参数。
+action:
+  velocity_scale: [1.0, 1.0, 1.0]  # 动作 ±1 映射的 [X, Y, Z] 速度 (m/s)。
+
+# Tutorial 1 外部 Planner baseline 参数。
+controllers:
+  # 位置指令 PID 参数。
+  position_command_pid:
+    # XYZ 位置比例增益。
+    position_kp:
+      - 1.3333333333333333         # X 位置比例增益 (1/s)。
+      - 1.3333333333333333         # Y 位置比例增益 (1/s)。
+      - 1.7777777777777777         # Z 位置比例增益 (1/s)。
+    position_ki: [0.0, 0.0, 0.0]   # XYZ 位置积分增益 (1/s²)。
+    position_integral_limit: 0.5   # 每轴位置积分限幅 (m·s)。
+
+# 单环境飞行数据记录参数。
+flight_logging:
+  enabled: true                              # 是否记录飞行 CSV。
+  env_id: 0                                  # 从批量环境中记录的环境索引。
+  output_root: outputs/flight_logs/tutorial1 # 相对项目根目录的输出目录。
+  flush_interval: 50                         # 每写入多少行刷新一次 CSV。
+  plot: true                                 # 结束后是否显示 Matplotlib 曲线 Figure。

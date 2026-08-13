@@ -1,20 +1,30 @@
+# 构建系统参数。
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["setuptools>=68", "wheel"]   # 构建依赖。
+build-backend = "setuptools.build_meta"  # 构建后端。
 
+# Python 项目元数据。
 [project]
-name = "isaaclab-uav-tutorial"
-version = "0.1.0"
-description = "A progressive Isaac Lab tutorial for UAV simulation and reinforcement learning"
-readme = "README.md"
-requires-python = ">=3.10"
+name = "isaaclab-uav-tutorial"  # Python 项目名称。
+version = "0.1.0"               # 项目版本。
+description = """A progressive Isaac Lab tutorial for UAV simulation and \
+reinforcement learning"""       # 项目简介。
+readme = "README.md"            # 项目说明文件。
+requires-python = ">=3.10"      # 最低 Python 版本。
+dependencies = [
+  "matplotlib>=3.7",
+  "PyYAML>=6.0",
+]                               # Python 运行依赖。
 
+# setuptools 包发现参数。
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src"]  # Python package 根目录。
 
+# Ruff 通用检查参数。
 [tool.ruff]
-line-length = 80
-target-version = "py310"
+line-length = 80          # 普通代码行最大字符数。
+target-version = "py310"  # 目标 Python 版本。
 
+# Ruff lint 规则参数。
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I"]  # 启用 pycodestyle、Pyflakes 和 import 规则。
